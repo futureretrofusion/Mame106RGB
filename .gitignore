@@ -1,0 +1,63 @@
+# Build trees / CMake output
+build/
+Build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+/Makefile
+
+# MAME/Amiga build output
+Mame106RGB
+Mame106RGB_*
+*.o
+*.obj
+*.o.d
+*.obj.d
+*.a
+*.so
+*.so.*
+*.dll
+*.exe
+
+# Logs / local experiments / backups
+*.log
+*.bak
+*.backup
+*.orig
+*.rej
+*~
+.#*
+#*#
+FRF_*_BACKUP_*/
+FRF_*_BUILD_*.log
+FRF_*_FAILED_*
+FRF_*_REPORT_*.txt
+
+# ROMs, disk images, game/media archives
+roms/
+ROMs/
+*.chd
+*.rom
+*.adf
+*.hdf
+*.iso
+*.cue
+*.ccd
+*.nrg
+*.zip
+*.7z
+*.rar
+*.lha
+*.lzx
+
+# Audio/media not required by source
+*.mp3
+*.wav
+*.flac
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,550 @@
+
+ r1.7
+
+  Here it is: Mame106Minimix release 1.7 "*Danmaku Edition*", loaded with novelties and bug corrections:
+
+  - new features:
+   - MUI Game list:
+     - Two new columns have been added! One indicates the game's genre, from among 44 genres (shootnup, platform, beatnup, sports, ...)
+      Some games also have specific tags in this column (Childish, Violent, 3D, Girly, Funny,...).
+      A column that gives you an identifier of the machine that runs the game was also added, useful for knowing which games share the same hardware.
+     - A new menu allow you to filter the game list by genre or tags.
+     - Column sorting is way better and you can also sort the genre and machine columns. This is great if you're into a specific game genre.
+     - "Number of players" information in the list is more accurate and differentiates simultaneous and alternative number of players.
+
+   - The Control Panel, which already manages 7 buttons CD32 Pads, mouses, parallel port 4 joystick extensions and analog proportional joysticks,
+     now also manage "MIDI IN" music controllers, as infinite buttons controllers, and sliders/pots has analog entries.
+     optionally,the keyboard notes can be seen as a single analog input, or used as a set of buttons. More information in the guide.
+
+   - During game you can "throttle" by maintaining key Shift+F10 pressed, that is to say: "accelerate the emulation so it uses 100% of the CPU".
+     If a given game does not already reach 100% speed (press help to know), it will do nothing. throttle is sometimes usefull to "skip intros".
+
+   - reading options from icon tooltips is repaired, and now you can also create "Project icons per game" with .info file in project mode,
+     with no file associated, Mame106 as tool, and tooltip "ROM=myrom", so a "project icon" can directly boot a given game.
+
+ - Bug Corrections:
+  - Machine Taito F3 corrected (biggest news of the year):
+     machine taito_f3 and anything using 68EC020 has been 100% corrected, and 10 to 20% speed optimized after weeks of work !
+     It is some kind of "super NeoGeo" with alpha blending and pixel rendering capabilities,
+     and an incredible Ensoniq sound chip (based on "Subtractive synthesis", and made by the same team as the C64 SID).
+     Reminding you that Taito had incredible composers and sound technicians also known as the band "Zuntata" should be enough
+     to tease your ears (and if not: https://www.youtube.com/watch?v=NrZ5dn4gBWo&list=RDNrZ5dn4gBWo&start_radio=1 )
+     Machine Taito_f3 supports 83 roms amongst: Bubble BobbleII (bublbob2),space invader 95 (spcinv95),
+      the incredible "Riding Fight" (ridingf), vertical shooter "Grid seeker" (gseeker). Anyway, sort the new machine column to
+      find out the list of taito F3 supported games.
+      Yet taito f3 emulation is still a bit too slow because of video mixing hard to emulate: frameskip will help.
+
+   - "Demon's world" enemies are back and game 100% working (Was a long way, sorry.).
+   - The automatic screen mode choice function (used with "best mode" option) was wrong on some recent drivers, so now we use our own version.
+   - Tons of games with sprite priorities issues corrected, this times very horizontaly and definitively, once for all.
+   - a memory hit with menu in 32bit mode was corrected.
+
+ - Games added in r1.7:
+  Since 68EC020 is ok, Games from editors still supporting 68000 and 68020 in the 1995/2000 period were added: Cave, Psikyo, Banpresto,...
+   There is 75 more roms supported, of high quality with excellent graphics and musics, well emulated and tested games:
+
+  - Vertical shooter of that time, with lots of bullets on screens, known as the "*Danmaku*" genre, are a lot more present:
+    "DonPachi"(donpachi), "DoDonPachi"(ddonpach),"ESP Ra.De."(esprade), "Gunbird"(gunbird), "Striker 1945"(s1945),
+    R-shark (rshark) and the mostly excellent "Dangun Feveron/Fever SOS"(dfeveron,feversos), the excellent "Air Gallet"(agallet).
+    (note the "raizing" danmakus were already supported: "Armed police batrider"(batrider),"Battle Garrega"(battleg),...)
+    ...filtering the list with vertical shooters genre and then sorting by years would give you the full list anyway !
+
+  - Support for the excellent Banpresto franchise games (MazingerZ "Goldorak" game(mazinger), Sailor Moon.(sailormn) ).
+  - other excellent Psikyo and cave games: Tengai(tengai),Samurai Aces(samuraia),Battle K-road (btlkroad).
+  - The Dooyong games (1990/1996), sort machine dooyoog to know.
+  - also more missing konamis: Wild cow boys of moo mesa, super contra, Thunder cross, super slam, vendetta (4p beatnup), escape kids, rollergames.
+
+ - About sources (for developpers around)
+  - Management of controllers has been heavily rewritten so it uses a plugin-like "abstract interface", amiga_inputs.cpp code
+    is way more clear and maintainable.
+
+-----------------------------
+
+ added again more missing knm: Wild cow boys of moo mesa, super contra, Thunder cross, super slam, vendetta (4p beatnup), escape kids, rollergames
+ support for game from companies that still supported 68000 and 68020 in the late 1990's: Cave Games (25 excellent games)
+ Bugs:
+  X betsmode fail with 384
+  X suprslam Super slam sprite xflip bug ugly
+  X rungun plante son boot grave. polyginet too
+  X test throttle IRL
+  X add column "machine"
+ X test MUI 3.8
+
+ X bestmode fail with arabian fight 420x240
+
+ -> add the 3 cave shooter
+  -> all psychio  LINK_PSIKYO ?
+ DDOYYONG "bluehawk"
+ LINK_NICHIBUT armedf
+ test "cyvern"
+
+ from MISC: the cave games
+ misc: ddonpach 1997 v shoot
+esprade 1998 atlus cave
+feversos
+-> any "cave"
+
+
+ r1.7
+  TODO
+  X MUI interface optimisation, and scan button doesn't rescan twice without reason (old  bug!)
+  X project icon can be used for game launch.
+  O MUI saves list column/sort states -> LOOKS NOT POSSIBLE
+  O explain how to make project icon in documentation
+  X key for throttle (shift+F10?)
+  O F4 guide in amigaguide.
+  X recode BestCModeIDTagList
+  O do a shortcut-creator on WB ?
+
+  O PHASERS !!
+
+  X genre and flags in db
+  X have genre column in MUI list
+  X have genre filter panel -> in menu.
+
+
+
+  O activate konami Moo mesa !!!
+  O ITECH ninja clowns ?
+  O activate SNK
+  O activate mrDo
+  O activate Misc Sailor moon
+    -> validate new games
+  O correct sprite prio
+
+  O have MUI icons for flags -> maybe not.
+
+ New in release r1.6:
+
+  - Support for "Potentiometer-based analog-absolute controllers" such as
+   Amiga proportional joysticks produced around 1988, Atari8Bit/ C64
+   "rotating Paddles", and 1990's "PC gameport" analog sticks and steering wheels.
+    Only on joystick port 2. This can be used by games that needs analog controllers.
+    "Go far in each directions at the begining of game to calibrate."
+    (More about this in documentation.)
+
+  - Support for a second button on "joystick3" of parallel port extension,
+   but you'll need to solder a wire. (More about this in documentation)
+
+  - 244 more roms supported:
+    - Some 1980/83 games: defender, scramble, galaxian,galaga3, tron, discs of tron,...
+    - a few 1985 atari and midway: Atari tetris, rampage, joust2,...
+    - a truckload of ntd "vs" and "playchoice" machine games.
+    - a few 1993 knm, (some glitchy):  Gaiapolis, Mystic Warriors (glitchy),
+      Monster Maulers, Violent Storm,Metamorphic Force,Martial Champion.
+
+    Mame106Minimix now support 2742 roms (counting versions, bootlegs, bioses,...)
+
+ - reminder: AGA/OCS users, you should install blazeWCP patch or rendering will be slow.
+    That *is* the "C2P". https://www.aminet.net/util/boot/Blazewcp.lha
+
+ - a few new features:
+   - the vector games with vertical screen have now a display conf slot different from the vector horizontal games.
+    ( so you can set rotate mode accordingly to vertical screen.)
+   - added a log line on the progressbar.
+   - verbose option tells more details about inits when option is used.
+
+ - bug corrections fixed:
+   - when using 2 mouses, buttons could be mixed : repaired.
+   - message of loading cheat when it was not loading cheats: repaired.
+   - some ui popup issue
+   - xml prefs save/load trashing float values: corrected.
+
+ Thanks to "Pops^Woodtower" for talking to me about the Amiga analog controllers at the NASS party.
+ What's missing now ? Phasers/Lightguns ? but I don't have a CRT.
+ Thanks to Glames, Fred "Screetch" Boisdron and family for testing the 4 player mode.
+ Thanks to all that have reported problems to the issue page.
+ Thanks to people for having made video on YT.
+ Bigger thanks again to Bebbo for the great (the immense) GCC6.5 port that made it possible.
+  (Sadly this project has been removed.)
+
+  Report problems, but also say hello, to :
+   https://github.com/krabobmkd/amigamame/issues
+  Last releases can be watched at:
+   https://github.com/krabobmkd/amigamame/releases
+
+
+
+  = = = = = = Special: "let's have more controllers" release. = = = = =
+
+  I've learned recently at an Amiga party that potentiometer-based,
+  analog-absolute joysticks actually existed on Amiga,
+  and were only produced for a few flight simulator games around 1988.
+  Extremely rare, but Atari 8bit and C64 "rotating paddles", more common,
+  are compatible with this. 1990's era "PC gameport" analog joystick and
+  steering wheels are also common and can be adapted easily as
+  "Amiga Analog absolute stick" (see documentation about this).
+
+  ...So here we go: this is now supported on DB9 joyport 2, when selected
+  in control panel. MAME will select it when the game needs analog control.
+  Just go far in all direction for "calibration" at the beginning.
+  A real pleasure with car games using analog wheels and pedals.
+  (A simple rotating paddle does a great wheel with outrun or chasehq).
+  "MousePort 1" can also potentially use potentiometers, but stealing port
+  to lowlevel and input.device didn't work in 100% cases, so it was disabled.
+
+ ... also 4 player games with parallel extension were tested at the party,
+  and if gauntlet and dynablaster looked ok with 1 button and 4 joypads,
+ tmnt,simpsons, and cadillac really needed a second button for parallel
+  pad extension 3 and 4.
+ ... so I found out a second button for pad3 can be easily added with
+ one more wire to parallel port PE/POUT pin, and this is now managed
+ by this emulator. But a second button for pad4 is more
+  difficult to get (using ACK signal and interupts?).
+  well Pad3 button2 hack works ! Half a victory.
+  read documentation about that if interested.
+
+  = = = = = = Special: "let's have more games" release. = = = = =
+
+ .... For all the 1980 arcade nostalgic barflies ...
+ Some of the missing all-time-top games of that era was added:
+  defender, scramble, super cobra, galaxian,
+  a few 1985 atari and midway: Atari tetris, rampage, galaga3, joust2
+  and then a truckload of ntd "vs" and "playchoice" machine games.
+  Really too much 8 bits games. So we also added:
+  some 1993 games: Gaiapolis, Mystic Warriors (glitchy), Monster Maulers,
+   Violent Storm,Metamorphic Force,Martial Champion.
+
+  Some roms statistics on Amiga MAME ports:
+
+  AMAME (0.35 port, 1998) 180 roms managed
+  MAME060 (0.37b port 1999) 600 roms managed <- (what we had for 25 years).
+  MAMEMinimix (0.106 port 2006, 2025) 2742 roms (244 more than r1.5)
+
+ Yet AMAME and MAME060 supports some roms that MAMEMinimix doesn't, and are certainly faster
+ for some games, because branch 0.106 has close to nothing in common with 0.37 branches
+ ( 7 years of work of the MAME team with at least 2 complete rewrites ).
+
+  Actually original 0.106 branch has about 6700 roms managed (including versions, bootlegs, and bioses),
+  with a good third of non working, which is logic because MAME is in eternal beta by design.
+ Reminder: original 106 branch code was *way more slow* (actually 250% slower, neogeo certainly 1000% slower)
+ and 14 months of work was necessary so it would be enjoyable on pistorm 3 (and more likely pi4).
+ That's why drivers were implemented along releases.
+
+  = = = = = = Special: "let's have less bugs" release. = = = = =
+
+ - when using 2 mouses, buttons could be mixed : repaired.
+ - message of loading cheat when it was not loading cheats: repaired.
+ - added a log line on the progressbar.
+ - some ui popup issue
+ - verbose tells everything about inits when option verbose is used.
+ - the vector games with vertical screen have now a display conf slot different of the vector horizontal games.
+  ( so you can set rotate mode accordingly)
+ O float value XML still not good !!!
+
+
+add: Mario bros
+
+
+ O rerepair xml
+ O test actual "no analog needed" message
+ O update cheat file
+ X do not display "load cheat" !!
+ X TEST: othund with 2 mouses inverted !
+ O  2 CD32 pads
+
+ X rawkey message for LL port 3&4 !!
+
+ X -> ui_popup ne diot pas se propager sur le prochani jeu
+
+ O -> test all that, correct sprites.
+
+ O if analog controller set but not used: tell ->later.
+
+ X Repair bug mouse1-p2 + mouse2-p1
+ X implement analog/proportional amiga joysticks with potgo.h
+	O code stealing mouse to input.device
+
+ O try parallel joystick port Bt2
+
+ X add defender+joust + atetris
+
+ O blabla docs for projoy/paddles.
+	- tells: if a game needs analog control,it will automatically redirect all
+	   analog compatible controllers for a given player: so it's better to disable "player 1 mouse"
+	   if you have "player1 propjoy", or both will be used at the same time. Using a mouse and
+	   a propjoy for different players is of course ok.
+
+-----------------
+
+ - Vector graphics games are implemented (starwars,Asteroid,startrek, cosmic chasm, battle zone, TacScan, (more or less 20 games).
+ - vector screens have specific configuration to finetune resolution, remanance,...
+ - .. and surprise: a special glow effect for vector Screens, specially coded for MAME Minimix.
+ - StarWars, Gauntlet, 720 degree, and all games using the "PoKey" sound chip (Atari) got 30% or 40% accelerated.
+ - "Turbo OutRun" and "F1GP Star 1&2" gets the same treatment as outrun and chasehq:
+     input menu panel with more explicit controls, wheel and gear optionnaly displayed.
+ - MUI supports dedicated appicon (skin/appicon.info) and amigaguide can be opened from help key.
+ - driver list can now be correctly sorted by screen mode, it's useful to sort vector games. 
+ - In-game menu "Game Information" now tells the actual Intuition Screen Mode found.
+ - Amigaguide Documentation updated.
+ - corrections for some screen rotation cases.
+ - the little bitmaps recently added in menu does not crash on big resolution anymore.
+ - some colors trashed in 8bit screens corrected. Now >240c <=256c screen will use 16bit screen, because there
+ is more colors in menu. (Should also have been the case when menu was 2 colors)
+ - Numberous little corrections here and there.
+
+ Todo r1.5
+  O battlezone check commands
+  O test mischevious atoi() calls.
+  X mapped modeid to screen panel
+  X regenerate amigaguide
+  X driver can sort by screen mode (sort was missing)
+  X do again icon chibichun menu
+  X Appicon support
+  X corrected some screen rotation axis on some fliped screen games cases
+  X windows overlap OS4 -> no-optim for >v50
+  X vector games
+        X cchasm+starwars
+        X rotate bug shiftRotationBits tacscan
+        X +opt_cinematic
+        X optim aa
+        X re-optim glow
+        X redo clipping
+        X implement full 15b mode
+        X optim , search div64 -> was pokey
+  X docs for OS4 petunia
+  X f1gp, turbo orun wheel+lever
+
+
+  X MUI:
+      X grey vector prefs, improve UI for vector settings
+	  X tells about keyb & tab menu on inputs panel
+ - - - - --
+  O developer notes todo
+  O the key selction in dynablaster vid mod ecan be full white -> not reproduced.
+------------
+todo R1.3b ->4?
+
+ X finish hangon handlebars
+ X pimp logo on menu ->hard
+ X docs: add about tilde menu + arrows to boost volume
+		docs: tells better about "Input (this Game)" Menu.
+
+ X Bigrun & cischeat: gear & wheel + try to have toggle shift with one button.
+ X sci also.
+
+  wheel & menu pimps:
+  outrun  : X menu  X goodies  X ghidden
+  bigrun  : X menu  X goodies  X ghidden
+  cischeat
+
+  thndbld :
+
+
+
+ X added kangooroo
+
+ X le tunnel de Chasehq est niqué !!!
+ X tester si chasehq pour wheel taitoic.
+
+ X MUI list multiple keyboard selection whatever the sort + only when list panel.
+ X revalider dispatcher list with "NO MUI5" version.
+ X MUIM_Window_SetCycleChain with serializer ?
+ X remove stream drivdispdbg in gui after its ok
+ X thunderblade/outrun/wb3/shangon interblocking -> CORRECTED
+ X Special progressbar for thunderblade long blocking boot
+ X nightstriker spriteprio
+
+ X car driving game: buton mouse 1 can accelerate and 2 brake, so mouse/trackball can be used completely by default.
+ outrun gear shift is space or joystick bt3.
+
+ X bug othunder after outrun
+ X guidon pour shangon
+ X optim sprite outrun 
+ X ChaseHQ has a gear shift
+ X gforce2 speed cpu
+
+--------------------------------------------------------------------------
+todo R1.3
+
+ X checksum neogeo3d
+
+ new feats:
+ - X outrun lever & wheel gadgets
+ - X outrun cpu sync optim.
+ - X run vaporous neogeo demo + neogeo3d.
+
+ big round of "let's make it better on native AGA and OCS".
+ - X allow 16,32 colors screen modes for OCS/ECS - only 16,32,256 are supported with fixed palette.
+ - X test with blasewpc, -> document blazewpc.
+ - X more precise color remap on >=8b screens.
+ - X integrates own C2P on native screens ? ->NO (done but disabled).
+
+  correcs:
+ - X no more glitch on boot screen on aga/ocs and window mode.
+ - X qbert on selected 16c ocs screens
+
+   game corrected:
+ - X 1944 is back and fixed !
+ - X PuzzleBobble Neogeo fixed !
+ - X correct flipx neogo sprites on some neogeo games.
+ - X "Super Chase Criminal Termination" sprite priorities fixed.
+ - X BigRun sprite prio -> was a 106 original bug. few glitches left but Bigrun is super cool now one of the best racing game.
+ - X 64th street(& lots of megasys jaleco games) sprite priority bug fixed.
+
+
+
+todo R1.2
+
+ Now I test with a Rpi CM4 with no overclock (1.5Ghz).
+
+
+ - Added such excellent games as Caveman Ninja, Cliffhanger Edward Randy,Robocop 2, and Mutant fighter (machine deco16)
+ - Few optimisations for chasehq/sci/operation thunderblot/nightstriker (+12% speed),topspeed,CPS2 games (late street fighters).
+ - The Abyss "Cruisin5" demo emulation using the arkanoid hardware,
+    now support "sprite multiplexing" so the demo is much, much more enjoyable.( There are still a few glitch left).
+
+ Corrections:
+ - X wrong colors on shadows: Dynamite Dux, golden Axe -> corrected.
+ - X Outzone "black screen": repaired.
+ - X Salamander corrupted sprite: corrected.
+ - X topspeed (taito outrun clone): corrected, few glitch left.
+ - X neogeo sound mixer simplified, may accelerate a bit on rPi3.
+ - X zoom909 wrong colors: corrected (palette rom is wrong, luckily could re-use parent palette.)
+
+ Improvments:
+ - Operation thunderbolt display crosshair only if moves. Remember you can play with 2 players with 2 mouses.
+   Now the second mouse button in window mode is trapped (does not open menu when window is focus),
+   also second mouse button was not automatically selected as "second button" like for joystick.
+   This is now the default when selecting mouse for inputs and needed for operation thunderbolt bombs.
+
+ Preferences evolutions:
+ - Frameskip is now a preference "Per game".
+ - A P96driver update trashed my screen configurations creating "ghost 0000 screenmodes" with wrong pixel mode.
+    Use new option "Force Depth 16" in such case, or select a 32bit mode explicitly to bypass problems.
+ - A Misc option for patch "NewLowLevel" needed by some A2000 configuration.
+
+------------------------------------------- still todo
+
+ - X mortal kombat/NBAJam boot !!
+ - O corrected amigaguide with OS3.2 version that includes images.
+
+ - O "Carrier Air Wing has graphic corruptions in first level (cawing)"
+        "No matter which set, has graphic corruption in the first level."
+        "After some enemies move from the background to the foreground, the entire game freezes."
+ - O Bubble Bobble 2
+
+
+  since beta4:
+ - A large Amigaguide documentation with tons of tricks for better usage !
+ - lots of early 80 games added, also some early konami and atari games:
+  pacman,galaga,pengo,qbert,donkey kong (&jr),green beret,pingpong,gyruss,gradius, gauntlet1&2,klax,....
+ - extra sound samples archive in dir samples/ are now supported so q*bert can say things like "@!#?@!".
+ - switching fullscreen to window with F10 now remember window's size and position, and this is saved by resolution. This gives a high comfort.
+ - 8Bit 256 colors screen and AGA workbenchs window mode can now display any source color format (8bit,16b,32bit) through color remap. Anything can be displayed by anywhat with rotation support and all.
+ - ThunderForceAC repaired, psychic5 (and 32b tilemaps) was broken+ bugs in DrawScaleXXX() that could hit memory.
+ - parallel port joysticks could only work if directed to player3 and 4. now anything is fine.
+
+todo R1
+ - X Volume AHI check
+-  X parrallel port doesnt work.
+ - X test rotate 8bit + remap
+ - X test error message when parent missing
+ - X remove konamigx if not working, or repair.
+ - X 8Bit Rendering on Screens for 16b.
+ - X 8Bit Rendering on Screens for 15b + 32b. (+wb)
+ - X 8Bit Rendering on Windows.
+ - X Amigaguide
+ - X samples load for QBert
+ - X bug tilemap psychic5
+ - X Remember window position size per res.
+
+ - O Amigaguide from MUI button -> NO.
+ - O config from commandline ->NO
+ - X bug galaga white bg when window to fullscreen
+ - O optimize gauntlet -> verify loginfo
+ - X no sound mix if no audio
+- X fastboot neogeo, batrider -> no mix
+
+
+todo beta4
+
+- X activate miniatari
+- O cheat file accelerate -> dead end no good solution
+- O apply super simple memread/write when driver allow.
+- X repair gforce2 sprites -> was musashi bug.
+- O repair optims YM2151 (rastan coin reverb LFO)
+- X drawgfx prio -> validate slikworm/rygar/...
+- X drawgfx
+		X pack4
+		X clip X1 bug
+- X tilemap bitfield line optim ->0.5% gain ? 3% ?
+- O optim sound bubbob
+- X  neogeo change RGB15 to 16b index
+- X  neogeo verif slicing
+- X  neogeo rewrite spriter in correct order and with no pixel tests.
+- X  neogeo bios choice
+- O need 100%: rastan (85%),slap fight (90%), bubbob (85%)
+- O fastboot neogeo, batrider
+- X Mui5 lists with sorting.
+- X some icon on UI.
+- X remove stdout logs, use status line, have output in option.
+
+
+
+todo beta3d
+- O keyboard blocked keys bug
+- O wrong megaplay colors -> remove all mp_xxx ?
+- X main.cfg trashed when caching big romset.
+- X 6% to 8% gain of 68k optimisations
+- X manage freeze init pass
+
+
+ Todo for beta3:
+ - X Mouse twice faster
+ - X bug when reloading list
+
+  - X- implement triple buffer at intuition level
+  - X mouse as optional input for analog input -> play arkanoid with mouse
+     X - idealy could have mouse+joy for same player
+     X - could have 2 mouses for 2 players (arkanoid return ?).
+  - O try to reactivate 8bit window remap.
+  - X no sound buzing when moving windows
+  - O remember windows position and size per resolution. ->no.
+
+
+ Done from Beta 1 to Beta 2:
+  - Corrected a bug on joystick config SetJoyPortAttrs(): missing the final TAG_DONE.
+     What a silly mistake: It is not tagged "Beta" for nothing.
+	 This actually was prone to freeze game initialisation. -> CORRECTED
+
+  - Default color Gamma is now 1.0 and not 0.5, .. i've been told it was too dark,
+    + gamma and brightness available in configuration
+  - Cheat mode file explicit in configuration.
+  - Operation thunderbolt and games with flags ORIENTATION_FLIP_X or ORIENTATION_FLIP_Y
+		are now displayed the right way (hopefully, no flipY games works).
+
+  - X Implement CGX/ScalePixelArray() for drawing
+
+
+ For beta 2 in term of priorities :
+
+
+  - O optimise memory write/read calls for z80/68k
+  - X Implement CGX/ScalePixelArray() for drawing
+  - X Implement Triple buffer (with ChangeScreen or else ?)
+  - O implement WriteChunkyPixels instead of WPA8 when os>=3.1
+  - O try to optimise sound chips with ridiculously high timing & cpu use (YM2151 ?)
+
+  Games not working when should:
+  - X neogeo ? -> investigate init error   -> OK
+  - X arkanoid 1 -> investigate init error  ->OK
+  - X all rtypes ? -> am I using wrong roms ? ->OK
+
+ - - - - -
+ - X ui: want number of players per games so much.
+ - X frameskip -> simple ->No
+ - X do save screenshot -> who care ? -> no.
+
+ - O remove S-TV , too much non working drivers.
+ - X mui list avoir année et entreprise en colonne
+ - X allow sorting by columns
+ - O finish drawing leds, test with a driver that lag while booting if it helps
+ - X a rom load progress bar somewhere.
+
+ -  command line
+    - O have most of the regular mame command options to list available roms.
+	- X lancer rom direct avec ligne commande ou tooltip.
+
+ - O test memory leaks and hits with muGuardianAngel & else -> muGuardianAngel with UAE & OS3.2 does nothing ????
+ - X verif GetCatalogStr , -> REMOVE ugly locale/catcomp engine that looks like leaking (no close calls ?), reintegrate later maybe.

@@ -1,0 +1,5 @@
+Upstream repository: https://github.com/mamedev/historic-mame
+Tag: mame0106
+File: docs/license.txt
+Retrieved with: gh api repos/mamedev/historic-mame/contents/docs/license.txt?ref=mame0106
+SHA256: 1af19840b4175b49f3b84fe019afd8f5120afe57426e68eb0ffdc72c338230c5

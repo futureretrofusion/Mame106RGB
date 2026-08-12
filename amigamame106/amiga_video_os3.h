@@ -1,0 +1,121 @@
+/******************************************************************************
+ * amiga_video_os3.h
+ *
+ *       ╔══════════════════════════════════╗
+ *       ║  ░▒▓█  OS3 GRAPHICS  █▓▒░       ║
+ *       ║  WriteChunkyPixels() Love        ║
+ *       ║  ┌──────────────────────┐        ║
+ *       ║  │ ▄▀▀▀ ▄▀▀▀ ▀▀█        │        ║
+ *       ║  │ █  █ ▀▀▀█ ▀▀█        │        ║
+ *       ║  │ ▀▀▀  ▀▀▀  ▀▀▀        │        ║
+ *       ║  └──────────────────────┘        ║
+ *       ║    Amiga OS3.x Forever!          ║
+ *       ╚══════════════════════════════════╝
+ *
+ * Author: krb
+ * Copyright (C) 2025
+ * Licensed under GPL v2
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ *****************************************************************************/
+
+#ifndef AMIGA_VIDEO_OS3_H
+#define AMIGA_VIDEO_OS3_H
+
+#include "amiga_video_intuition.h"
+
+extern "C"
+{
+    #include <graphics/rastport.h>
+}
+class Ham6EuaeOutput;
+
+ // gather draw calls here to share.
+class Drawable_OS3 {
+public:
+  Drawable_OS3(IntuitionDrawable &drawable);
+  virtual ~Drawable_OS3();
+  void draw_WPA8(_mame_display *display);
+  void draw_WriteChunkyPixels(_mame_display *display);
+#ifdef ACTIVATE_OWN_C2P
+// removed because slower than "blazewcp"+writechunkypixels()
+  void draw_c2p(_mame_display *display);
+#endif
+  inline bool isSourceRGBA32() {
+      const ULONG fritata = (VIDEO_RGB_DIRECT|VIDEO_NEEDS_6BITS_PER_GUN);
+      return ((_video_attributes&fritata)==fritata);
+  }
+protected:
+  void initRemapTable();
+  void close();
+  IntuitionDrawable &_drawable;
+  Paletted *_pRemap;
+  bool _useIntuitionPalette;
+    // from mame params
+  int _colorsIndexLength;
+  int _video_attributes;
+
+  // used for drawRastPortWPA8
+    std::vector<UBYTE> _wpatempbm;
+    struct wpa8temprastport {
+        int _checkw;
+        RastPort _rp;
+    };
+    wpa8temprastport _trp;
+    void checkWpa8TmpRp(RastPort *,int linewidth);
+};
+
+
+class Intuition_Screen_OS3 : public Intuition_Screen, public Drawable_OS3
+{
+public:
+    Intuition_Screen_OS3(const AbstractDisplay::params &params);
+    ~Intuition_Screen_OS3();
+
+    bool open() override;
+    void close() override;
+    void draw(_mame_display *display) override;
+protected:
+    int _lightpen_inited;
+    /* FRF_FIX70_COMPLETE_HAM6_MEMBER */
+    bool _fix70Ham6Mode;
+    Ham6EuaeOutput *_ham6Output;
+    int _ham6Mode;
+    int _ehb6Mode;
+    ULONG _ham6LastHash;
+    /* FRF Mame106RGB V3J FIX1 CYCLES TYPE
+     * Keep MAME's cycles_t out of this public C++ header.  The value
+     * returned by osd_cycles() is stored as an explicit 64-bit counter.
+     */
+    unsigned long long _ham6LastUpdate;
+    ULONG _ham6ClearSignature;
+    std::vector<UWORD> _ham6Rgb444;
+    void drawHAM6(_mame_display *display);
+
+    /* FRF_FIX75_V4_INDEPENDENT_HAM_MEMBER */
+    Ham6EuaeOutput *_frfFix75V4HamOutput;
+};
+class Intuition_Window_OS3 : public Intuition_Window, public Drawable_OS3
+{
+public:
+    Intuition_Window_OS3(const AbstractDisplay::params &params);
+    ~Intuition_Window_OS3();
+
+    bool open() override;
+    void close() override;
+    void draw(_mame_display *display) override;
+
+protected:
+
+};
+#endif
+
+/* OS3 - Old School, Still Rocks!
+ *       (o_
+ *       //\  <-- Penguin runs on everything!
+ *       V_/_
+ *        ||
+ */
