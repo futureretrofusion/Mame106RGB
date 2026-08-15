@@ -104,6 +104,11 @@ extern unsigned long frf89_effective_modeid;
 extern int frf89_effective_depth;
 extern int frf89_modeid_failed;
 
+extern "C" {
+    int frf92_view_scale_permille(void); /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_GEOMETRY_DECL */
+    ULONG frf92_view_scale_generation(void);
+}
+
 static ULONG frf89_effective_display_id(ULONG configured)
 {
     ULONG candidate = configured;
@@ -288,6 +293,29 @@ void IntuitionDrawable::getGeometry(_mame_display *display,int &cenx,int &ceny,i
             ceny += _screenshifty;
         }
 
+    }
+
+    /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_GEOMETRY
+     * Scale the chosen destination rectangle, not the MAME visible source.
+     * Existing tracer code therefore preserves the full image and resamples.
+     */
+    {
+        const int frf92Scale = frf92_view_scale_permille();
+        if(frf92Scale > 0 && frf92Scale < 1000 && ww > 0 && hh > 0)
+        {
+            const int oldW = ww;
+            const int oldH = hh;
+            int newW = (oldW * frf92Scale + 500) / 1000;
+            int newH = (oldH * frf92Scale + 500) / 1000;
+            if(newW < 1) newW = 1;
+            if(newH < 1) newH = 1;
+            if(newW > oldW) newW = oldW;
+            if(newH > oldH) newH = oldH;
+            cenx += (oldW - newW) >> 1;
+            ceny += (oldH - newH) >> 1;
+            ww = newW;
+            hh = newH;
+        }
     }
 
     // could happen if screen more little than source.

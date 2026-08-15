@@ -192,6 +192,8 @@ private:
         int outputY,
         int sourceWidth,
         int sourceHeight,
+        int targetWidth,  /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_HAM_DECL */
+        int targetHeight,
         int offsetX,
         int offsetY);
 

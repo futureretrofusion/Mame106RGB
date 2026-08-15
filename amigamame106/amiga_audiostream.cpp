@@ -174,7 +174,7 @@ static LONG AHISStaticThread_Open( sAHISoundServer *pAHIS )
     if(pAHIS==NULL || !mainprocess) return 1;
 
  //printf("ahi init\n");
-    BYTE deviceResult;
+    BYTE deviceResult = 1; /* FRF100B_SCALE_AUDIO_FASTRAM_060 */
     pAHIS->m_AHImp = CreatePort(NULL,0);
     pAHIS->m_AHIio = (struct AHIRequest*)CreateExtIO(pAHIS->m_AHImp ,sizeof(struct AHIRequest));
 
@@ -206,7 +206,31 @@ static LONG AHISStaticThread_Open( sAHISoundServer *pAHIS )
     if(pAHIS->m_stereo) streamBytes<<=1;
 
     // then again <<1 * 2 for double buffer
-    pAHIS->m_pSBuffAlloc = (SHORT*) AllocVec(streamBytes<<1, MEMF_PUBLIC|MEMF_CLEAR);
+    /* FRF100B_SCALE_AUDIO_FASTRAM_060
+     * Prefer Fast RAM for the two final AHI staging buffers.
+     * Keep MEMF_PUBLIC because the AHI worker/device shares them.
+     * Fall back to the original public allocation for compatibility.
+     */
+    pAHIS->m_pSBuffAlloc = (SHORT *)AllocVec(
+        streamBytes << 1,
+        MEMF_FAST | MEMF_PUBLIC | MEMF_CLEAR);
+
+    if(!pAHIS->m_pSBuffAlloc)
+    {
+        pAHIS->m_pSBuffAlloc = (SHORT *)AllocVec(
+            streamBytes << 1,
+            MEMF_PUBLIC | MEMF_CLEAR);
+    }
+
+    if(pAHIS->m_pSBuffAlloc)
+    {
+        ULONG frf100bMemType = TypeOfMem((APTR)pAHIS->m_pSBuffAlloc);
+
+        printf(
+            "FRF100B AHI STAGING: %lu bytes, %s, gapless-linked, 16-bit\n",
+            streamBytes << 1,
+            (frf100bMemType & MEMF_FAST) ? "FAST RAM" : "PUBLIC fallback");
+    }
     if (!pAHIS->m_pSBuffAlloc) {
         pAHIS->m_Error = eAHIS_NotEnoughMemory;
         AHISStaticThread_Close(pAHIS);

@@ -158,6 +158,17 @@ static int frameSkipConfiguration = false;
 /* FRF87_OUTRUN_STEADY_MK_DENSE */
 static int frf87_out_run_force_realtime = 0;
 
+/* FRF96_OUTRUN_MUSIC_CLOCK_STABILIZER
+ * Legacy OSD pacing keeps missed time as debt. After a slow frame the emulator
+ * therefore runs later frames too fast to catch up, which is audible as
+ * soundtrack tempo hunting. OutRun gets a separate incremental deadline that
+ * rebases meaningful lateness instead of paying it back as overspeed.
+ */
+static cycles_t frf96_outrun_deadline = 0;
+static cycles_t frf96_outrun_late_avg = 0;
+static int frf96_outrun_clock_ready = 0;
+static ULONG frf96_outrun_rebases = 0;
+
 /* FRF88_HOTKEY_AB_CRASH_SAFE */
 /* FRF90B1_PAUSED_COLOR_SWITCH
  * MAME 0.106 core pause API.
@@ -200,6 +211,30 @@ static int frf91c2_deadline_reached(void)
 }
 
 int frf88_opt_enabled = 0;
+
+/* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_STATE
+ * Runtime destination scale. 1000 = 100.0%.
+ */
+static int frf92_view_scale_index = 0;
+static int frf92_view_scale_latched = 0;
+static ULONG frf92_view_scale_generation_value = 1;
+static const int frf92_view_scale_table[4] = { 1000, 875, 750, 625 };
+
+extern "C" int frf92_view_scale_permille(void)
+{
+    return frf92_view_scale_table[frf92_view_scale_index];
+}
+
+extern "C" ULONG frf92_view_scale_generation(void)
+{
+    return frf92_view_scale_generation_value;
+}
+
+static const char *frf92_view_scale_name(void)
+{
+    static const char *names[4] = { "100%", "87.5%", "75%", "62.5%" };
+    return names[frf92_view_scale_index];
+}
 
 
 /* FRF89I_TRANSACTIONAL_HAM_EHB_RGB32_GREY_HOTKEY
@@ -427,6 +462,15 @@ static int frfReadBoolEnvDefaultOff(const char *name)
 
     return 1;
 }
+/* FRF92C_QUIET_PIPELINE_LOG */
+static int frf92c_pipeline_log_enabled(void)
+{
+    static int cached = -1;
+    if(cached < 0)
+        cached = frfReadBoolEnvDefaultOff("FRFPIPE");
+    return cached;
+}
+
 //ledBitmap _ledBitmap(3,4); // nbleds, ledwidth
 bool SwitchWindowFullscreen()
 {
@@ -444,6 +488,11 @@ void ResetWatchTimer()
     FrameCounter = 0;
     StartTime = 0;
     GetStartTime = 1;
+
+    /* FRF96_OUTRUN_MUSIC_CLOCK_STABILIZER */
+    frf96_outrun_deadline = 0;
+    frf96_outrun_late_avg = 0;
+    frf96_outrun_clock_ready = 0;
 }
 
 // get a swapxy/flipx/flipy bits configuration and return rotated versions.
@@ -622,12 +671,22 @@ int osd_create_display(const _osd_create_params *pparams, UINT32 *rgb_components
 
     frf88_is_outrun =
         Machine && Machine->gamedrv && Machine->gamedrv->name &&
-        strcmp(Machine->gamedrv->name, "outrun") == 0;
+        strncmp(Machine->gamedrv->name, "outrun", 6) == 0;
     frf88_tuned_game =
         Machine && Machine->gamedrv && Machine->gamedrv->name &&
         (frf88_is_outrun ||
          strcmp(Machine->gamedrv->name, "mk") == 0);
     frf87_out_run_force_realtime = frf88_is_outrun;
+
+    /* FRF96_OUTRUN_MUSIC_CLOCK_STABILIZER */
+    frf96_outrun_deadline = 0;
+    frf96_outrun_late_avg = 0;
+    frf96_outrun_clock_ready = 0;
+    frf96_outrun_rebases = 0;
+
+    if(frf88_is_outrun)
+        printf("FRF96 OUTRUN CLOCK: %.6f Hz; catch-up debt disabled\n",
+               (double)pparams->fps);
 
     /* Every launch begins in the known baseline behaviour. */
     frf88_opt_enabled = 0;
@@ -801,8 +860,66 @@ void osd_update_video_and_audio(struct _mame_display *display)
     // apply eventual hard beam waiting (if too fast) just before draw.
     {
         // no more 64b division !
-        cycles_t cyclethatShouldBeNow = StartTime + (gameCyclePerFrame * FrameCounter );
         cycles_t cnow = osd_cycles();
+        cycles_t cyclethatShouldBeNow;
+
+        /* FRF96_OUTRUN_MUSIC_CLOCK_STABILIZER
+         *
+         * Other games preserve the legacy absolute deadline exactly.
+         *
+         * OutRun uses an incremental deadline. If a frame is meaningfully
+         * late, the deadline is moved to NOW. That lost wall-clock time is
+         * never turned into a later overspeed burst.
+         *
+         * Thresholds:
+         *   instantaneous late > 1/8 frame
+         *   smoothed late      > 1/16 frame
+         */
+        if(frf88_is_outrun)
+        {
+            if(!frf96_outrun_clock_ready || frf96_outrun_deadline <= 0)
+            {
+                frf96_outrun_deadline = cnow;
+                frf96_outrun_late_avg = 0;
+                frf96_outrun_clock_ready = 1;
+            }
+            else
+            {
+                frf96_outrun_deadline += gameCyclePerFrame;
+            }
+
+            cyclethatShouldBeNow = frf96_outrun_deadline;
+
+            if(cnow > cyclethatShouldBeNow)
+            {
+                cycles_t late = cnow - cyclethatShouldBeNow;
+
+                if(frf96_outrun_late_avg == 0)
+                    frf96_outrun_late_avg = late;
+                else
+                    frf96_outrun_late_avg =
+                        (frf96_outrun_late_avg * 7 + late) / 8;
+
+                if(late > (gameCyclePerFrame / 8) ||
+                   frf96_outrun_late_avg > (gameCyclePerFrame / 16))
+                {
+                    frf96_outrun_deadline = cnow;
+                    cyclethatShouldBeNow = cnow;
+                    frf96_outrun_late_avg = 0;
+                    frf96_outrun_rebases++;
+                }
+            }
+            else
+            {
+                frf96_outrun_late_avg =
+                    (frf96_outrun_late_avg * 7) / 8;
+            }
+        }
+        else
+        {
+            cyclethatShouldBeNow =
+                StartTime + (gameCyclePerFrame * FrameCounter);
+        }
 
         // if OS paused (window moving, menu bt, intuition hogs, reset timer)
         //if(FrameCounter+(igamefps>>1)<framesThatShouldbeNow)
@@ -886,12 +1003,66 @@ void osd_update_video_and_audio(struct _mame_display *display)
         frf74_display_draw_ticks +=
             osd_cycles() - frf74DisplayStart;
     }
-    frf74_report_pipeline();
+    if(frf92c_pipeline_log_enabled())
+        frf74_report_pipeline(); /* FRF92C_QUIET_PIPELINE_LOG_CALL */
     }
 
     MsgPort *userport = g_pMameDisplay->userPort();
     if(userport) Inputs_Keyboard_ll_Update(userport);
     Inputs_FrameUpdate();
+
+
+    /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_HOTKEYS
+     * FRF92B_VIEWPORT_HOTKEY_COLLISION_FIX
+     *
+     * Function keys are intentionally NOT used here.
+     * LALT + main/keypad minus shrinks.
+     * LALT + main equals or keypad plus enlarges.
+     */
+    {
+        const int frf92_minus =
+            (code_pressed(KEYCODE_MINUS) ||
+             code_pressed(KEYCODE_MINUS_PAD)) ? 1 : 0;
+        const int frf92_plus =
+            (code_pressed(KEYCODE_EQUALS) ||
+             code_pressed(KEYCODE_PLUS_PAD)) ? 1 : 0;
+        const int frf92_lalt = code_pressed(KEYCODE_LALT) ? 1 : 0;
+        const int frf92_chord =
+            frf92_lalt && (frf92_minus || frf92_plus);
+
+        if(frf92_chord && !frf92_view_scale_latched &&
+           !frf89_recreating_display &&
+           !frf89_color_switch_pending &&
+           frf90b1_switch_stage == 0)
+        {
+            const int oldIndex = frf92_view_scale_index;
+
+            if(frf92_minus && frf92_view_scale_index < 3)
+                frf92_view_scale_index++;
+            else if(frf92_plus && frf92_view_scale_index > 0)
+                frf92_view_scale_index--;
+
+            if(oldIndex != frf92_view_scale_index)
+            {
+                frf92_view_scale_generation_value++;
+                printf("FRF92B VIEWPORT: %s -> %s (%s)\n",
+                    oldIndex < frf92_view_scale_index ? "SMALLER" : "LARGER",
+                    frf92_view_scale_name(),
+                    frf92_minus ? "LALT+-" : "LALT+=");
+                ui_popup_time(1, "VIEWPORT: %s",
+                    frf92_view_scale_name());
+            }
+            else
+            {
+                printf("FRF92B VIEWPORT: limit %s\n",
+                    frf92_view_scale_name());
+                ui_popup_time(1, "VIEWPORT: %s (LIMIT)",
+                    frf92_view_scale_name());
+            }
+        }
+
+        frf92_view_scale_latched = frf92_chord ? 1 : 0;
+    }
 
 
     /* FRF89K_INPUT_PRESERVING_END_FRAME_SWITCH

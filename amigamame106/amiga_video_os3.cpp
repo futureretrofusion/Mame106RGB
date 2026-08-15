@@ -472,6 +472,11 @@ extern "C" {
         LONG chunkybpr REG(d4));
 }
 
+extern "C" {
+    int frf92_view_scale_permille(void); /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_OS3_DECL */
+    ULONG frf92_view_scale_generation(void);
+}
+
 void Drawable_OS3::draw_c2p(_mame_display *display)
 {
     /* FRF_NATIVE_ASM_C2P_ALIGNED_V1
@@ -480,6 +485,14 @@ void Drawable_OS3::draw_c2p(_mame_display *display)
      */
     RastPort *pRPort = _drawable.rastPort();
     if(!pRPort || !pRPort->BitMap || !display || !display->game_bitmap) return;
+
+
+    /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_OS3_CLEAR
+     * Clear stale border pixels once for each scale generation.
+     */
+    frfV3CClearPlanarIfNeeded(
+        pRPort->BitMap,
+        0x92000000UL ^ frf92_view_scale_generation());
 
     if(_pRemap && (((display->changed_flags & GAME_PALETTE_CHANGED) != 0) ||
                    _pRemap->needRemap()))

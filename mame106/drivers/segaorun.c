@@ -32,6 +32,17 @@
 #define MASTER_CLOCK			50000000
 #define SOUND_CLOCK				16000000
 
+/* FRF96_OUTRUN_MUSIC_CLOCK_STABILIZER
+ * Later OutRun hardware timing work corrected the old nominal 60.000 Hz
+ * assumption to approximately 60.054389 Hz.
+ *
+ * IMPORTANT: sound clocks remain unchanged:
+ *   Z80     = SOUND_CLOCK/4 = 4 MHz
+ *   YM2151  = SOUND_CLOCK/4 = 4 MHz
+ *   SegaPCM = SOUND_CLOCK/4 = 4 MHz
+ */
+#define FRF96_OUTRUN_REFRESH_HZ 60.054389
+
 
 /*************************************
  *
@@ -546,8 +557,8 @@ static WRITE16_HANDLER( outrun_custom_io_w )
 
 		case 0x70/2:
 		{
-    		//not used in that case: offset &= 0x7f/2;
-    		//optim this horror -> not much, copy 2kb each 2 frames.
+		//not used in that case: offset &= 0x7f/2;
+		//optim this horror -> not much, copy 2kb each 2 frames.
 			//test
 			//segaic16_sprites_draw_0_w(offset, data, mem_mask);
 
@@ -1000,8 +1011,8 @@ static MACHINE_DRIVER_START( outrun )
 	MDRV_CPU_PROGRAM_MAP(sound_map,0)
 	MDRV_CPU_IO_MAP(sound_portmap,0)
 
-	MDRV_FRAMES_PER_SECOND(60)
-	MDRV_VBLANK_DURATION(1000000 * (262 - 224) / (262 * 60))
+	MDRV_FRAMES_PER_SECOND(FRF96_OUTRUN_REFRESH_HZ)
+	MDRV_VBLANK_DURATION((int)(1000000.0 * (262 - 224) / (262.0 * FRF96_OUTRUN_REFRESH_HZ)))
 
 	MDRV_MACHINE_RESET(outrun)
 	MDRV_NVRAM_HANDLER(outrun)

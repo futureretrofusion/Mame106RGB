@@ -378,7 +378,8 @@ void MameConfig::serialize(ASerializer &serializer)
         "Describe what is plugged (Joystick,Pads,Mouses)\n and to which player it belongs.\n"
         "Abstract keys means: not configured for a player:\n"
         "Keyboard and abstract keys must be configured\n"
-        " during game with Tab Key menu:General/This game input.";
+        " during game with Tab Key menu:General/This game input.\n"
+        "Modern Gamepad maps A/B/X/Y/L1/R1/Start.";
     if(hasProportionalStickResource()) // unrelated bu tells we are on Amiga classic.
     {   // if classic hardware ports...
         controlPanelComments += "\nAnalog controllers must be plugged when switched off.";
@@ -428,6 +429,9 @@ void MameConfig::toDefault()
     _controls._llPort_Type[2] = 0;
     _controls._llPort_Player[3] = 0;
     _controls._llPort_Type[3] = 0;
+
+    /* FRF101_MODERN_GAMEPAD_CONTROLS */
+    for(int i=0;i<4;i++) _controls._llPort_PadLayout[i] = 0;
 
     _controls._parallelPort_Player[0]=0;
     _controls._parallel_type[0]=1; // joy1 by def because the only way up to date
@@ -650,6 +654,47 @@ void MameConfig::Controls::serialize(ASerializer &serializer)
 
     serializer("Lowlevel Port 4", (int&)_llPort_Player[3],strPlayers);
     serializer("Types P4", (int&)_llPort_Type[3],strLLTypesBasics);
+
+    /* FRF101_MODERN_GAMEPAD_CONTROLS
+     * Physical protocol remains SJA_TYPE_GAMECTLR (value 1).
+     * This selector changes the presentation/layout published to MAME only.
+     */
+    static const vector<string> strPadTypes={
+        "Classic CD32 Pad",
+        "Modern Gamepad (A/B/X/Y/L1/R1)",
+        "Modern HID Extended (Poseidon)"
+    }; /* FRF102_POSEIDON_EXTENDED_GAMEPAD */
+
+    serializer("Pad Type P1", (int&)_llPort_PadLayout[0],strPadTypes);
+    serializer("Pad Type P2", (int&)_llPort_PadLayout[1],strPadTypes);
+    serializer("Pad Type P3", (int&)_llPort_PadLayout[2],strPadTypes);
+    serializer("Pad Type P4", (int&)_llPort_PadLayout[3],strPadTypes);
+
+    serializer.enable("Controls.Pad Type P1",(_llPort_Type[0] == 1)?1:0);
+    serializer.enable("Controls.Pad Type P2",(_llPort_Type[1] == 1)?1:0);
+    serializer.enable("Controls.Pad Type P3",(_llPort_Type[2] == 1)?1:0);
+    serializer.enable("Controls.Pad Type P4",(_llPort_Type[3] == 1)?1:0);
+
+    serializer.listenChange("Types P1",[](ASerializer &serializer, void *p)
+    {
+        if(!p) return;
+        serializer.enable("Controls.Pad Type P1",(*(int *)p == 1)?1:0);
+    });
+    serializer.listenChange("Types P2",[](ASerializer &serializer, void *p)
+    {
+        if(!p) return;
+        serializer.enable("Controls.Pad Type P2",(*(int *)p == 1)?1:0);
+    });
+    serializer.listenChange("Types P3",[](ASerializer &serializer, void *p)
+    {
+        if(!p) return;
+        serializer.enable("Controls.Pad Type P3",(*(int *)p == 1)?1:0);
+    });
+    serializer.listenChange("Types P4",[](ASerializer &serializer, void *p)
+    {
+        if(!p) return;
+        serializer.enable("Controls.Pad Type P4",(*(int *)p == 1)?1:0);
+    });
 
     // - - - -
 

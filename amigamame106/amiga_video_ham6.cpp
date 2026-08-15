@@ -16,6 +16,11 @@
  *****************************************************************************/
 
 #include "amiga_video_ham6.h"
+
+extern "C" {
+    int frf92_view_scale_permille(void); /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_HAM_EXTERN */
+    ULONG frf92_view_scale_generation(void);
+}
 #include "amiga_video_intuition.h"
 
 #include <proto/exec.h>
@@ -769,9 +774,11 @@ bool Ham6EuaeOutput::open()
     _paletteError = (UBYTE *)allocFast(PALETTE_TABLE_SIZE, "indexed-direct-error");
     _paletteCommand = (UBYTE *)allocFast(PALETTE_TABLE_SIZE, "indexed-direct-command");
     _rgbLine = (UWORD *)allocFast(WIDTH * sizeof(UWORD), "RGB15-line");
-    _probeSamples = allocFast(
-        FRF85_PROBE_CAPACITY * sizeof(FrfFix85ProbeSample),
-        "FIX85 per-game probe ring");
+    _probeSamples = frf86b_log_enabled()
+        ? allocFast(
+            FRF85_PROBE_CAPACITY * sizeof(FrfFix85ProbeSample),
+            "FIX85 per-game probe ring")
+        : NULL; /* FRF92C_QUIET_PROBE_ALLOC */
     _probeWrite = 0;
     _probeCount = 0;
     _probeTotal = 0;
@@ -1763,36 +1770,31 @@ bool Ham6EuaeOutput::prepareRgbLine(
     int outputY,
     int sourceWidth,
     int sourceHeight,
+    int targetWidth,
+    int targetHeight,
     int offsetX,
     int offsetY)
 {
-    /* FRF_FIX77_WIDE_FRAME_HANDOFF
-     *
-     * Read MAME's raw visible bitmap in final display orientation. If the
-     * oriented image is wider than the 320-pixel HAM surface, resample only
-     * the horizontal axis to 320. Heights above 256 remain unsupported.
-     * For <=320-pixel images targetWidth == orientedWidth, making the mapping
-     * one-to-one and preserving the proven Neo Geo and FIX76 rotation paths.
+    /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_HAM_PREPARE
+     * Nearest-neighbour resample of the complete oriented source.
      */
     mame_bitmap *bitmap = display->game_bitmap;
     const rectangle &visible = display->game_visible_area;
     int orientation = _drawable.flags() & ORIENTATION_MASK;
     int orientedWidth =
-        (orientation & ORIENTATION_SWAP_XY)
-            ? sourceHeight
-            : sourceWidth;
+        (orientation & ORIENTATION_SWAP_XY) ? sourceHeight : sourceWidth;
     int orientedHeight =
-        (orientation & ORIENTATION_SWAP_XY)
-            ? sourceWidth
-            : sourceHeight;
-    int targetWidth = orientedWidth > WIDTH ? WIDTH : orientedWidth;
+        (orientation & ORIENTATION_SWAP_XY) ? sourceWidth : sourceHeight;
     int relativeY;
     int outputX;
 
     memset(_rgbLine, 0, WIDTH * sizeof(UWORD));
 
-    if(outputY < offsetY ||
-       outputY >= offsetY + orientedHeight)
+    if(targetWidth <= 0 || targetWidth > WIDTH ||
+       targetHeight <= 0 || targetHeight > HEIGHT)
+        return false;
+
+    if(outputY < offsetY || outputY >= offsetY + targetHeight)
         return true;
 
     relativeY = outputY - offsetY;
@@ -1804,7 +1806,11 @@ bool Ham6EuaeOutput::prepareRgbLine(
                 ? outputX
                 : (int)(((ULONG)outputX * (ULONG)orientedWidth) /
                         (ULONG)targetWidth);
-        int orientedY = relativeY;
+        int orientedY =
+            targetHeight == orientedHeight
+                ? relativeY
+                : (int)(((ULONG)relativeY * (ULONG)orientedHeight) /
+                        (ULONG)targetHeight);
         int sourceX;
         int sourceY;
         UWORD rgb444;
@@ -1830,32 +1836,26 @@ bool Ham6EuaeOutput::prepareRgbLine(
 
         if(bitmap->depth == 8)
         {
-            const UINT8 *line =
-                (const UINT8 *)bitmap->line[sourceY];
+            const UINT8 *line = (const UINT8 *)bitmap->line[sourceY];
             rgb444 = _palette15[line[sourceX]];
         }
         else if(bitmap->depth == 15)
         {
-            const UINT16 *line =
-                (const UINT16 *)bitmap->line[sourceY];
+            const UINT16 *line = (const UINT16 *)bitmap->line[sourceY];
             UWORD pixel = line[sourceX];
             rgb444 = ((_videoAttributes & VIDEO_RGB_DIRECT) != 0)
-                ? quantiseRgb15(pixel)
-                : _palette15[pixel];
+                ? quantiseRgb15(pixel) : _palette15[pixel];
         }
         else if(bitmap->depth == 16)
         {
-            const UINT16 *line =
-                (const UINT16 *)bitmap->line[sourceY];
+            const UINT16 *line = (const UINT16 *)bitmap->line[sourceY];
             UWORD pixel = line[sourceX];
             rgb444 = ((_videoAttributes & VIDEO_RGB_DIRECT) != 0)
-                ? quantiseRgb16(pixel)
-                : _palette15[pixel];
+                ? quantiseRgb16(pixel) : _palette15[pixel];
         }
         else if(bitmap->depth == 32)
         {
-            const UINT32 *line =
-                (const UINT32 *)bitmap->line[sourceY];
+            const UINT32 *line = (const UINT32 *)bitmap->line[sourceY];
             rgb444 = quantiseArgb32(line[sourceX]);
         }
         else
@@ -2045,6 +2045,8 @@ bool Ham6EuaeOutput::renderWideIndexedFrame(
     int y;
     int plane;
     int frf87MkDense = 0;
+    const int frf92cMkSafe = (frf86b_game_mode() == 1);
+    static int frf92cMkSafeReported = 0; /* FRF92C_MK_HAM_FREEZE_QUARANTINE */
 
     if(depth != 8 && depth != 16)
         return false;
@@ -2054,8 +2056,18 @@ bool Ham6EuaeOutput::renderWideIndexedFrame(
     if(!updatePalette(display))
         return false;
 
-    if(frf88_opt_enabled && frf86b_game_mode() == 1 &&
-       _interleaved[bufferIndex] && frf87_mk_dense_budget > 0)
+    if(frf92cMkSafe)
+    {
+        frf87MkDense = 0;
+        frf87_mk_dense_budget = 0;
+        if(!frf92cMkSafeReported)
+        {
+            printf("FRF92C MK HAM SAFE: predictive-dense=OFF row-burst=OFF dirty-plane-runs=ON\n");
+            frf92cMkSafeReported = 1;
+        }
+    }
+    else if(frf88_opt_enabled && frf86b_game_mode() == 1 &&
+            _interleaved[bufferIndex] && frf87_mk_dense_budget > 0)
     {
         frf87MkDense = 1;
         frf87_mk_dense_budget--;
@@ -2157,7 +2169,7 @@ bool Ham6EuaeOutput::renderWideIndexedFrame(
 
         changedLines++;
 
-        if(_interleaved[bufferIndex])
+        if(_interleaved[bufferIndex] && !frf92cMkSafe)
         {
             UWORD *lineShadow = rowShadow + y * PLANES * WORDS_PER_ROW;
             UBYTE *destination = (UBYTE *)bitmap->Planes[0] +
@@ -2191,12 +2203,16 @@ bool Ham6EuaeOutput::renderWideIndexedFrame(
         }
     }
 
-    if(frf88_opt_enabled && frf86b_game_mode() == 1 &&
+    if(!frf92cMkSafe && frf88_opt_enabled &&
+       frf86b_game_mode() == 1 &&
        _interleaved[bufferIndex] && !frf87MkDense &&
        changedLines >= 220UL)
     {
-        /* Two cheap dense followers, then one normal probe frame. */
         frf87_mk_dense_budget = 2;
+    }
+    else if(frf92cMkSafe)
+    {
+        frf87_mk_dense_budget = 0;
     }
 
     _forceFull[bufferIndex] = 0;
@@ -2604,6 +2620,10 @@ bool Ham6EuaeOutput::renderFrame(
     int orientedWidth;
     int orientedHeight;
     int targetWidth;
+    int targetHeight; /* FRF92_UNIVERSAL_RUNTIME_VIEWPORT_SCALER_HAM_RENDER */
+    int frf92Scale;
+    ULONG frf92Generation;
+    static ULONG frf92LastGeneration = 0;
     int offsetX;
     int offsetY;
     int y;
@@ -2626,10 +2646,24 @@ bool Ham6EuaeOutput::renderFrame(
         ? sourceHeight : sourceWidth;
     orientedHeight = (orientation & ORIENTATION_SWAP_XY)
         ? sourceWidth : sourceHeight;
+    frf92Scale = frf92_view_scale_permille();
+    if(frf92Scale <= 0 || frf92Scale > 1000)
+        frf92Scale = 1000;
+
     targetWidth = orientedWidth > WIDTH ? WIDTH : orientedWidth;
+    targetHeight = orientedHeight;
+
+    if(frf92Scale < 1000)
+    {
+        targetWidth = (targetWidth * frf92Scale + 500) / 1000;
+        targetHeight = (targetHeight * frf92Scale + 500) / 1000;
+        if(targetWidth < 1) targetWidth = 1;
+        if(targetHeight < 1) targetHeight = 1;
+    }
 
     if(sourceWidth <= 0 || sourceHeight <= 0 || orientedWidth <= 0 ||
-       orientedHeight <= 0 || targetWidth <= 0 || orientedHeight > HEIGHT)
+       orientedHeight <= 0 || targetWidth <= 0 || targetHeight <= 0 ||
+       targetWidth > WIDTH || targetHeight > HEIGHT)
     {
         if(!_reportedIncompatibleFrame)
         {
@@ -2644,7 +2678,22 @@ bool Ham6EuaeOutput::renderFrame(
     }
 
     offsetX = (WIDTH - targetWidth) >> 1;
-    offsetY = (HEIGHT - orientedHeight) >> 1;
+    offsetY = (HEIGHT - targetHeight) >> 1;
+
+    frf92Generation = frf92_view_scale_generation();
+    if(frf92Generation != frf92LastGeneration)
+    {
+        _forceFull[0] = 1;
+        _forceFull[1] = 1;
+        frf92LastGeneration = frf92Generation;
+        printf("FRF92 HAM VIEWPORT: scale=%d.%d%% raw=%dx%d oriented=%dx%d output=%dx%d offset=%d,%d%s\n",
+            frf92Scale / 10, frf92Scale % 10,
+            sourceWidth, sourceHeight,
+            orientedWidth, orientedHeight,
+            targetWidth, targetHeight,
+            offsetX, offsetY,
+            frf92Scale == 1000 ? "" : " generic-scaled-path");
+    }
 
     if(orientedWidth > WIDTH && !_reportedIncompatibleFrame)
     {
@@ -2656,7 +2705,8 @@ bool Ham6EuaeOutput::renderFrame(
         _reportedIncompatibleFrame = 1;
     }
 
-    if(display->game_bitmap->depth == 16 &&
+    if(frf92Scale == 1000 &&
+       display->game_bitmap->depth == 16 &&
        (_videoAttributes & VIDEO_RGB_DIRECT) == 0 &&
        orientation == 0 && sourceWidth == WIDTH && offsetX == 0)
     {
@@ -2673,7 +2723,8 @@ bool Ham6EuaeOutput::renderFrame(
     }
 
     /* FIX83: wide unrotated indexed games use raw-pen fast path. */
-    if((display->game_bitmap->depth == 8 ||
+    if(frf92Scale == 1000 &&
+       (display->game_bitmap->depth == 8 ||
         display->game_bitmap->depth == 16) &&
        (_videoAttributes & VIDEO_RGB_DIRECT) == 0 &&
        orientation == 0 &&
@@ -2685,7 +2736,8 @@ bool Ham6EuaeOutput::renderFrame(
             sourceWidth, sourceHeight, offsetY);
     }
 
-    if((display->game_bitmap->depth == 8 ||
+    if(frf92Scale == 1000 &&
+       (display->game_bitmap->depth == 8 ||
         display->game_bitmap->depth == 16) &&
        (_videoAttributes & VIDEO_RGB_DIRECT) == 0 &&
        orientation != 0 && orientedWidth <= WIDTH)
@@ -2716,7 +2768,7 @@ bool Ham6EuaeOutput::renderFrame(
     {
         UWORD *oldSource = sourceShadow + y * WIDTH;
         if(!prepareRgbLine(display, y, sourceWidth, sourceHeight,
-                           offsetX, offsetY))
+                           targetWidth, targetHeight, offsetX, offsetY))
             return false;
         if(!_forceFull[bufferIndex] &&
            memcmp(_rgbLine, oldSource, WIDTH * sizeof(UWORD)) == 0)
