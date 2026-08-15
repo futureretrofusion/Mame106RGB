@@ -14,9 +14,9 @@
 #define APP_PRODUCT_NAME  "Mame106RGB"
 #define APP_CORE_VERSION  "0.106"
 #define APP_PLATFORM      "OCS/ECS"
-#define APP_RELEASE       "V3L"
+#define APP_RELEASE       "V103"
 #define APP_AUTHOR        "Future Retro"
-#define APP_BUILD_DATE    "2026-07-09"
+#define APP_BUILD_DATE    "2026-08-16"
 #define APP_CPU_LABEL     "68060 FPU"
 
 #define APPNAMEA \
