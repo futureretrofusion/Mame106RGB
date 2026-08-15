@@ -2650,8 +2650,37 @@ bool Ham6EuaeOutput::renderFrame(
     if(frf92Scale <= 0 || frf92Scale > 1000)
         frf92Scale = 1000;
 
-    targetWidth = orientedWidth > WIDTH ? WIDTH : orientedWidth;
+    /*
+     * FRF103_FAST_INDEXED_HAM_FIT
+     *
+     * Fit the complete oriented image inside the physical 320x256 HAM
+     * viewport before applying the user's runtime viewport scale. Previous
+     * code clamped width only, so tall ROT90/ROT270 games such as 19XX and
+     * Ikari Warriors remained >256 lines and were rejected before the
+     * indexed fast paths could run.
+     */
+    targetWidth = orientedWidth;
     targetHeight = orientedHeight;
+
+    if(targetWidth > WIDTH || targetHeight > HEIGHT)
+    {
+        if((ULONG)targetWidth * (ULONG)HEIGHT >
+           (ULONG)targetHeight * (ULONG)WIDTH)
+        {
+            targetHeight =
+                (targetHeight * WIDTH + targetWidth / 2) / targetWidth;
+            targetWidth = WIDTH;
+        }
+        else
+        {
+            targetWidth =
+                (targetWidth * HEIGHT + targetHeight / 2) / targetHeight;
+            targetHeight = HEIGHT;
+        }
+
+        if(targetWidth < 1) targetWidth = 1;
+        if(targetHeight < 1) targetHeight = 1;
+    }
 
     if(frf92Scale < 1000)
     {
@@ -2758,6 +2787,258 @@ bool Ham6EuaeOutput::renderFrame(
                 display, bitmap, bufferIndex, sourceWidth, sourceHeight,
                 offsetX, offsetY, orientation);
         }
+    }
+
+    /*
+     * FRF103_FAST_INDEXED_HAM
+     *
+     * General scaled indexed path. This covers:
+     *   - tall rotated games that must be fit to 320x256 (19XX, Ikari, etc.)
+     *   - indexed games using the runtime viewport scaler below 100%
+     *
+     * Keep the framebuffer as raw palette indices through rotation and
+     * nearest-neighbour fitting. RGB conversion is avoided completely.
+     * Compare the fitted index line with the Fast-RAM raw shadow first,
+     * then HAM-encode/copy only lines which actually changed or use a
+     * palette entry whose colour changed.
+     */
+    if((display->game_bitmap->depth == 8 ||
+        display->game_bitmap->depth == 16) &&
+       (_videoAttributes & VIDEO_RGB_DIRECT) == 0 &&
+       (targetWidth != orientedWidth ||
+        targetHeight != orientedHeight ||
+        frf92Scale != 1000))
+    {
+        mame_bitmap *gameBitmap = display->game_bitmap;
+        const rectangle &visible = display->game_visible_area;
+        UWORD *rawShadow = _rawIndexShadow[bufferIndex];
+        UWORD *fastPlanarShadow = _planarShadow[bufferIndex];
+        UWORD *rowShadow = _interleavedRowShadow[bufferIndex];
+        ULONG *pending = _palettePending[bufferIndex];
+        UWORD *rawLine = _rgbLine;
+        ULONG fastFrameBytes = 0;
+        ULONG fastFrameRuns = 0;
+        ULONG fastChangedLines = 0;
+        ULONG fastReusedLines = 0;
+        UWORD fastPacked[PLANES][WORDS_PER_ROW] __attribute__((aligned(4)));
+        int depth = gameBitmap->depth;
+        int outputY;
+        int fastPlane;
+        static int frf103LastSourceWidth = -1;
+        static int frf103LastSourceHeight = -1;
+        static int frf103LastTargetWidth = -1;
+        static int frf103LastTargetHeight = -1;
+        static int frf103LastOrientation = -1;
+
+        if(!updatePalette(display))
+            return false;
+
+        if(_paletteEntries >= PALETTE_TABLE_SIZE)
+            return false;
+
+        if((display->changed_flags & GAME_VISIBLE_AREA_CHANGED) != 0)
+        {
+            _forceFull[0] = 1;
+            _forceFull[1] = 1;
+        }
+
+        if(frf103LastSourceWidth != sourceWidth ||
+           frf103LastSourceHeight != sourceHeight ||
+           frf103LastTargetWidth != targetWidth ||
+           frf103LastTargetHeight != targetHeight ||
+           frf103LastOrientation != orientation)
+        {
+            const char *gameName =
+                (Machine && Machine->gamedrv && Machine->gamedrv->name)
+                    ? Machine->gamedrv->name : "unknown";
+
+            printf(
+                "FRF103 HAM6 FAST-FIT: game=%s raw=%dx%d "
+                "oriented=%dx%d output=%dx%d depth=%d flags=%d "
+                "indexed=YES rgb-conversion=OFF dirty-lines=ON\\n",
+                gameName,
+                sourceWidth, sourceHeight,
+                orientedWidth, orientedHeight,
+                targetWidth, targetHeight,
+                depth, orientation);
+
+            frf103LastSourceWidth = sourceWidth;
+            frf103LastSourceHeight = sourceHeight;
+            frf103LastTargetWidth = targetWidth;
+            frf103LastTargetHeight = targetHeight;
+            frf103LastOrientation = orientation;
+        }
+
+        if(_interleaved[bufferIndex] && !_interleavedBurstReported)
+        {
+            printf(
+                "FRF FIX72 HAM6 BURST: layout interleaved, "
+                "240-byte changed-line CopyMemQuick path active\\n");
+            _interleavedBurstReported = 1;
+        }
+
+        for(outputY = 0; outputY < HEIGHT; outputY++)
+        {
+            UWORD *oldSource = rawShadow + outputY * WIDTH;
+            int lineVisible =
+                outputY >= offsetY && outputY < offsetY + targetHeight;
+            int needsEncode = _forceFull[bufferIndex] != 0;
+
+            memset(rawLine, 0xff, WIDTH * sizeof(UWORD));
+
+            if(lineVisible)
+            {
+                int relativeY = outputY - offsetY;
+                int orientedY = targetHeight == orientedHeight
+                    ? relativeY
+                    : (int)(((ULONG)relativeY *
+                             (ULONG)orientedHeight) /
+                            (ULONG)targetHeight);
+                int outputX;
+
+                for(outputX = 0; outputX < targetWidth; outputX++)
+                {
+                    int orientedX = targetWidth == orientedWidth
+                        ? outputX
+                        : (int)(((ULONG)outputX *
+                                 (ULONG)orientedWidth) /
+                                (ULONG)targetWidth);
+                    int sampleX = orientedX;
+                    int sampleY = orientedY;
+                    int sourceX;
+                    int sourceY;
+                    UWORD pen;
+
+                    if(orientation & ORIENTATION_FLIP_X)
+                        sampleX = orientedWidth - 1 - sampleX;
+                    if(orientation & ORIENTATION_FLIP_Y)
+                        sampleY = orientedHeight - 1 - sampleY;
+
+                    if(orientation & ORIENTATION_SWAP_XY)
+                    {
+                        sourceX = sampleY;
+                        sourceY = sampleX;
+                    }
+                    else
+                    {
+                        sourceX = sampleX;
+                        sourceY = sampleY;
+                    }
+
+                    sourceX += visible.min_x;
+                    sourceY += visible.min_y;
+
+                    if(depth == 16)
+                    {
+                        const UINT16 *source =
+                            (const UINT16 *)gameBitmap->line[sourceY];
+                        pen = source[sourceX];
+                    }
+                    else
+                    {
+                        const UINT8 *source =
+                            (const UINT8 *)gameBitmap->line[sourceY];
+                        pen = (UWORD)source[sourceX];
+                    }
+
+                    rawLine[offsetX + outputX] = pen;
+                }
+            }
+
+            if(!needsEncode &&
+               memcmp(rawLine, oldSource,
+                      WIDTH * sizeof(UWORD)) != 0)
+                needsEncode = 1;
+
+            if(!needsEncode &&
+               _palettePendingAny[bufferIndex] &&
+               lineUsesPendingPalette(rawLine, pending))
+                needsEncode = 1;
+
+            if(!needsEncode)
+            {
+                fastReusedLines++;
+                continue;
+            }
+
+            encodeAndPackIndexedLine(rawLine, fastPacked);
+            CopyMem(
+                (APTR)rawLine,
+                (APTR)oldSource,
+                WIDTH * sizeof(UWORD));
+            fastChangedLines++;
+
+            if(_interleaved[bufferIndex])
+            {
+                UWORD *lineShadow =
+                    rowShadow + outputY * PLANES * WORDS_PER_ROW;
+                UBYTE *destination =
+                    (UBYTE *)bitmap->Planes[0] +
+                    outputY * _rowStride[bufferIndex];
+                ULONG rowBytes =
+                    PLANES * WORDS_PER_ROW * sizeof(UWORD);
+
+                if(_forceFull[bufferIndex] ||
+                   memcmp(fastPacked, lineShadow, rowBytes) != 0)
+                {
+                    copyAlignedBurst(
+                        destination, fastPacked, rowBytes);
+                    copyAlignedBurst(
+                        lineShadow, fastPacked, rowBytes);
+                    fastFrameBytes += rowBytes;
+                    fastFrameRuns++;
+                    _interleavedBurstLines++;
+                    _interleavedBurstBytes += rowBytes;
+                }
+            }
+            else
+            {
+                for(fastPlane = 0;
+                    fastPlane < PLANES;
+                    fastPlane++)
+                {
+                    UWORD *shadow =
+                        fastPlanarShadow +
+                        fastPlane * PLANE_WORDS +
+                        outputY * WORDS_PER_ROW;
+                    UWORD *destination =
+                        (UWORD *)(
+                            (UBYTE *)bitmap->Planes[fastPlane] +
+                            outputY * _rowStride[bufferIndex]);
+
+                    fastFrameBytes += copyChangedPlaneRow(
+                        destination,
+                        shadow,
+                        fastPacked[fastPlane],
+                        &fastFrameRuns);
+                }
+            }
+        }
+
+        _forceFull[bufferIndex] = 0;
+        memset(
+            pending,
+            0,
+            PALETTE_DIRTY_WORDS * sizeof(ULONG));
+        _palettePendingAny[bufferIndex] = 0;
+
+        _lastFrameBytes = fastFrameBytes;
+        _chipBytes += fastFrameBytes;
+        _dirtyRuns += fastFrameRuns;
+        _convertedLines += fastChangedLines;
+        _reusedLines += fastReusedLines;
+        _indexedFastFrames++;
+        _indexedChangedLines += fastChangedLines;
+        _indexedReusedLines += fastReusedLines;
+
+        if(_interleaved[bufferIndex])
+            _interleavedBurstFrames++;
+        if(fastFrameBytes == 0)
+            _zeroWriteFrames++;
+        if(fastFrameBytes >= 60000UL)
+            _fullishFrames++;
+
+        return true;
     }
 
     if(!updatePalette(display)) return false;
