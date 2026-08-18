@@ -162,6 +162,12 @@ private:
         int pixelCount,
         int firstWord,
         UWORD packed[PLANES][WORDS_PER_ROW]) const;
+    /* FRF103_TALL_ROTATED_FAST_HAM_V4 */
+    void encodeAndPackRgbSpan(
+        const UWORD *source,
+        int pixelCount,
+        int firstWord,
+        UWORD packed[PLANES][WORDS_PER_ROW]) const;
 
     static void copyWordRun(UWORD *destination, const UWORD *source, int words);
     static ULONG copyChangedPlaneRow(

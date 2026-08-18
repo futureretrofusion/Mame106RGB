@@ -1200,6 +1200,21 @@ bool Intuition_Screen_OS3::open()
 
     //printf("Intuition_Screen_OS3::open\n");
     _fullscreenWidth = (_fullscreenWidth+31) & 0xffffffe0; // 32pixel align for c2p
+    /* FRF103_HAM_FORCE_320X256_ROUTE_V43
+     * Ham6EuaeOutput is a fixed 320x256 six-plane HAM backend.
+     * Tall rotated games must be fitted by the renderer, not by
+     * increasing the physical native HAM screen height.
+     */
+    if((frf89_color_mode % 5) == 0 &&
+       (_fix70Ham6Mode || _ham6Mode))
+    {
+        _fullscreenWidth = 320;
+        _fullscreenHeight = 256;
+        _flags &= ~(DISPFLAG_USETRIPLEBUFFER |
+                    DISPFLAG_USEHEIGHTBUFFER);
+        printf("FRF103 HAM ROUTE V4.3: native HAM screen forced 320x256\\n");
+    }
+
     bool ok = Intuition_Screen::open();
     if(!ok) return false;
     // after Screen is open, create the normal remapper or HAM6 engine.
@@ -1216,7 +1231,7 @@ bool Intuition_Screen_OS3::open()
         for(int pen=0;pen<16;++pen)
             SetRGB4(&(_pScreen->ViewPort),pen,0,0,0);
 
-        loginfo(2,"FRF HAM6 engine active: OCS/ECS, single-buffer, default 1 fps");
+        loginfo(2,"FRF HAM6 legacy static fallback prepared; fast E-UAE route follows");
     }
     else
     {
