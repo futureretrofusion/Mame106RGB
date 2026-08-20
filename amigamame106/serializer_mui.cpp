@@ -13,6 +13,7 @@ extern "C" {
 #include <proto/dos.h>
 #include <proto/graphics.h>
 #include <proto/intuition.h>
+#include <proto/cybergraphics.h> /* FRF105_REQUESTER_ALL_NATIVE_AND_RTG */
 
 #include <stdio.h>
 #include <string.h>
@@ -30,6 +31,7 @@ extern "C" {
     #include <proto/muimaster.h>
     #include <libraries/asl.h>
     #include <graphics/displayinfo.h>
+    #include <cybergraphx/cybergraphics.h>
 }
 
 typedef ULONG (*RE_HOOKFUNC)(); // because C++ type issue.
@@ -41,6 +43,7 @@ typedef ULONG (*RE_HOOKFUNC)(); // because C++ type issue.
 		MUIA_String_Contents, contents,\
 		TAG_DONE)
 
+extern struct Library *CyberGfxBase;
 using namespace std;
 
 MUISerializer::MUISerializer()
@@ -1115,9 +1118,10 @@ MUISerializer::LScreenModeReq::LScreenModeReq(
     , _ScreenModeFilterHook()
 {
     /*
-     * ASL normally filters for DIPF_IS_WB.  HAM6 is not a Workbench mode,
-     * so the custom filter admits native OCS/ECS modes up to six planes,
-     * including HAM6, while excluding AA/AGA and foreign/RTG modes.
+     * FRF105_REQUESTER_ALL_NATIVE_AND_RTG
+     * Show classic native, AA/AGA, and valid CyberGraphX/P96 modes.
+     * AGA HAM selections are normalised later to classic HAM6 so they use
+     * the exact A500-proven fast renderer.
      */
     _ScreenModeFilterHook.h_Entry =
         (RE_HOOKFUNC)
@@ -1131,7 +1135,7 @@ MUISerializer::LScreenModeReq::LScreenModeReq(
         { ASLSM_InitialDisplayID,    0 },
         { ASLSM_InitialDisplayDepth, 16 },
         { ASLSM_DoDepth,             TRUE },
-        { ASLSM_MaxDepth,            6 },
+        { ASLSM_MaxDepth,           32 }, /* FRF105 */
         { ASLSM_PropertyFlags,       0 },
         { ASLSM_PropertyMask,        0 },
         {
@@ -1172,12 +1176,10 @@ void MUISerializer::LScreenModeReq::update()
     if(!_value) return;
     Level::update();
     _ScreenModeTags[SMT_DISPLAYID].ti_Data = (*_value)._modeId;
-    ULONG frfHamDepth = (*_value)._depth;
-    if(frfHamDepth < 1) frfHamDepth = 1;
-    if(frfHamDepth > 6) frfHamDepth = 6;
     ULONG requestDepth = (*_value)._depth;
-    if(requestDepth < 16) requestDepth = 16;
-    _ScreenModeTags[SMT_DEPTH].ti_Data = requestDepth;
+    if(requestDepth < 1) requestDepth = 1;
+    if(requestDepth > 32) requestDepth = 32;
+    _ScreenModeTags[SMT_DEPTH].ti_Data = requestDepth; /* FRF105 */
     SetDisplayName(*_value);
 }
 
@@ -1219,17 +1221,17 @@ ULONG MUISerializer::LScreenModeReq::ScreenModeFilter(
     if(displayInfo.NotAvailable)
         return FALSE;
 
-#ifdef DIPF_IS_AA
-    if(displayInfo.PropertyFlags & DIPF_IS_AA)
-        return FALSE;
-#endif
+    /* FRF105: AA/AGA is valid native hardware.
+     * Foreign modes are shown only when CyberGraphX/P96 recognises them.
+     */
 #ifdef DIPF_IS_FOREIGN
     if(displayInfo.PropertyFlags & DIPF_IS_FOREIGN)
-        return FALSE;
+    {
+        if(!CyberGfxBase)
+            return FALSE;
+        return IsCyberModeID(modeid) ? TRUE : FALSE;
+    }
 #endif
-
-    if(dims.MaxDepth > 6)
-        return FALSE;
 
     if(displayInfo.PropertyFlags & DIPF_IS_HAM)
         return dims.MaxDepth >= 6 ? TRUE : FALSE;
@@ -1272,16 +1274,15 @@ ULONG MUISerializer::LScreenModeReq::PopupStop(struct Hook *hook REG(a0), APTR p
 
         if(gotDisplay > 0)
         {
-            int rejected = 0;
-#ifdef DIPF_IS_AA
-            if(displayInfo.PropertyFlags & DIPF_IS_AA) rejected = 1;
-#endif
+            int foreignMode = 0;
 #ifdef DIPF_IS_FOREIGN
-            if(displayInfo.PropertyFlags & DIPF_IS_FOREIGN) rejected = 1;
+            if(displayInfo.PropertyFlags & DIPF_IS_FOREIGN)
+                foreignMode = 1;
 #endif
-            if(!rejected && (displayInfo.PropertyFlags & DIPF_IS_HAM))
+            if(!foreignMode && (displayInfo.PropertyFlags & DIPF_IS_HAM))
                 isHam6 = 1;
-            if(!rejected && (displayInfo.PropertyFlags & DIPF_IS_EXTRAHALFBRITE))
+            if(!foreignMode &&
+               (displayInfo.PropertyFlags & DIPF_IS_EXTRAHALFBRITE))
                 isEhb6 = 1;
         }
 

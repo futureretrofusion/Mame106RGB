@@ -647,11 +647,29 @@ bool Ham6EuaeOutput::bitmapLayout(
     ULONG *rowStride,
     int *interleaved)
 {
+    /* FRF108_AGA_CANONICAL_INTERLEAVED
+     *
+     * A1200/V39+ canonical interleaved bitmap:
+     *   320 pixels => 40 bytes per plane-row
+     *   6 planes   => BytesPerRow == 240
+     *   Planes[p]  == Planes[0] + p*40
+     *
+     * Legacy V103/A500 representation:
+     *   BytesPerRow == 40
+     *   Planes[p]   == Planes[0] + p*40
+     *   complete row stride == 40*6 == 240
+     *
+     * The renderer's interleaved burst is already a 240-byte contiguous
+     * write, so canonical AGA needs rowStride=BytesPerRow, not *Depth.
+     */
     ULONG bytesPerRow;
+    ULONG bitmapFlags;
+    ULONG planeRowBytes;
     ULONG planeSpan;
     int p;
     int q;
-    int exactInterleaved = 1;
+    int canonicalInterleaved = 0;
+    int legacyInterleaved = 1;
 
     if(!bitmap || !rowStride || !interleaved ||
        bitmap->Depth < PLANES ||
@@ -664,21 +682,68 @@ bool Ham6EuaeOutput::bitmapLayout(
             return false;
 
     bytesPerRow = (ULONG)bitmap->BytesPerRow;
+    bitmapFlags = GetBitMapAttr(bitmap, BMA_FLAGS);
+
+    if((bitmapFlags & BMF_INTERLEAVED) &&
+       bitmap->Depth > 0 &&
+       (bytesPerRow % (ULONG)bitmap->Depth) == 0)
+    {
+        planeRowBytes = bytesPerRow / (ULONG)bitmap->Depth;
+
+        if(planeRowBytes >= 40)
+        {
+            canonicalInterleaved = 1;
+
+            for(p = 1; p < PLANES; p++)
+            {
+                if((UBYTE *)bitmap->Planes[p] !=
+                   (UBYTE *)bitmap->Planes[0] +
+                   (ULONG)p * planeRowBytes)
+                {
+                    canonicalInterleaved = 0;
+                    break;
+                }
+            }
+
+            if(canonicalInterleaved)
+            {
+                *rowStride = bytesPerRow;
+                *interleaved = 1;
+
+                printf(
+                    "FRF108 HAM LAYOUT: canonical interleaved "
+                    "bpr=%lu planeRow=%lu rowStride=%lu depth=%u\n",
+                    (unsigned long)bytesPerRow,
+                    (unsigned long)planeRowBytes,
+                    (unsigned long)*rowStride,
+                    (unsigned int)bitmap->Depth);
+                return true;
+            }
+        }
+    }
 
     for(p = 1; p < PLANES; p++)
     {
-        if((ULONG)bitmap->Planes[p] !=
-           (ULONG)bitmap->Planes[0] + (ULONG)p * bytesPerRow)
+        if((UBYTE *)bitmap->Planes[p] !=
+           (UBYTE *)bitmap->Planes[0] +
+           (ULONG)p * bytesPerRow)
         {
-            exactInterleaved = 0;
+            legacyInterleaved = 0;
             break;
         }
     }
 
-    if(exactInterleaved)
+    if(legacyInterleaved)
     {
         *rowStride = bytesPerRow * (ULONG)bitmap->Depth;
         *interleaved = 1;
+
+        printf(
+            "FRF108 HAM LAYOUT: legacy interleaved "
+            "bpr=%lu rowStride=%lu depth=%u\n",
+            (unsigned long)bytesPerRow,
+            (unsigned long)*rowStride,
+            (unsigned int)bitmap->Depth);
         return true;
     }
 
@@ -693,12 +758,28 @@ bool Ham6EuaeOutput::bitmapLayout(
 
             if(firstAddress < secondAddress + planeSpan &&
                secondAddress < firstAddress + planeSpan)
+            {
+                printf(
+                    "FRF108 HAM LAYOUT REJECT: overlapping unknown layout "
+                    "bpr=%lu flags=%08lx p%d=%p p%d=%p\n",
+                    (unsigned long)bytesPerRow,
+                    (unsigned long)bitmapFlags,
+                    p,(void *)bitmap->Planes[p],
+                    q,(void *)bitmap->Planes[q]);
                 return false;
+            }
         }
     }
 
     *rowStride = bytesPerRow;
     *interleaved = 0;
+
+    printf(
+        "FRF108 HAM LAYOUT: separate planar "
+        "bpr=%lu rowStride=%lu depth=%u\n",
+        (unsigned long)bytesPerRow,
+        (unsigned long)*rowStride,
+        (unsigned int)bitmap->Depth);
     return true;
 }
 

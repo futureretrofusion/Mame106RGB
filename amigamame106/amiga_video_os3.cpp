@@ -1087,6 +1087,123 @@ Intuition_Screen_OS3::Intuition_Screen_OS3(const AbstractDisplay::params &params
         }
     } // end if no mode decided at first
 
+    /* FRF105_A1200_USE_A500_HAM_PATH
+     *
+     * AGA is backward-compatible with classic planar HAM6.  The A500
+     * V103 path is already runtime-proven, so do not invent an AGA-specific
+     * HAM framebuffer/presenter.
+     *
+     * If the user selected an AA/AGA HAM mode, ask graphics.library for a
+     * compatible non-AA, non-foreign native HAM mode at depth 6 and at the
+     * selected mode's nominal geometry.  This converts HAM8/AA-family
+     * selections into the same kind of classic HAM6 screen an A500 opens.
+     */
+#ifdef DIPF_IS_AA
+    if(_ScreenModeId != INVALID_ID)
+    {
+        struct DisplayInfo frf105Display;
+        struct DimensionInfo frf105Dims;
+        LONG frf105GotDisplay;
+        LONG frf105GotDims;
+
+        memset(&frf105Display, 0, sizeof(frf105Display));
+        memset(&frf105Dims, 0, sizeof(frf105Dims));
+
+        frf105GotDisplay = GetDisplayInfoData(
+            NULL,
+            (UBYTE *)&frf105Display,
+            sizeof(frf105Display),
+            DTAG_DISP,
+            _ScreenModeId);
+
+        frf105GotDims = GetDisplayInfoData(
+            NULL,
+            (UBYTE *)&frf105Dims,
+            sizeof(frf105Dims),
+            DTAG_DIMS,
+            _ScreenModeId);
+
+        if(frf105GotDisplay > 0 &&
+           (frf105Display.PropertyFlags & DIPF_IS_HAM) &&
+           (frf105Display.PropertyFlags & DIPF_IS_AA))
+        {
+            ULONG oldMode = _ScreenModeId;
+            UWORD nominalW = 320;
+            UWORD nominalH = 256;
+
+            if(frf105GotDims > 0)
+            {
+                LONG w =
+                    frf105Dims.Nominal.MaxX -
+                    frf105Dims.Nominal.MinX + 1;
+                LONG h =
+                    frf105Dims.Nominal.MaxY -
+                    frf105Dims.Nominal.MinY + 1;
+
+                if(w > 0 && w <= 65535) nominalW = (UWORD)w;
+                if(h > 0 && h <= 65535) nominalH = (UWORD)h;
+            }
+
+            /* Classic HAM6 is low-resolution. Preserve timing/aspect intent,
+             * but cap oversized AA dimensions to the A500-compatible surface.
+             */
+            if(nominalW > 320) nominalW = 320;
+            if(nominalH > 256) nominalH = 256;
+            if(nominalW < 160) nominalW = 320;
+            if(nominalH < 180) nominalH = 256;
+
+            ULONG classicHam = BestModeID(
+                BIDTAG_NominalWidth, nominalW,
+                BIDTAG_NominalHeight, nominalH,
+                BIDTAG_DesiredWidth, nominalW,
+                BIDTAG_DesiredHeight, nominalH,
+                BIDTAG_Depth, 6,
+                BIDTAG_DIPFMustHave, DIPF_IS_HAM,
+                BIDTAG_DIPFMustNotHave,
+                    (ULONG)(DIPF_IS_AA
+#ifdef DIPF_IS_FOREIGN
+                    | DIPF_IS_FOREIGN
+#endif
+                    ),
+                TAG_DONE);
+
+            if(classicHam != INVALID_ID)
+            {
+                struct DisplayInfo verify;
+                memset(&verify, 0, sizeof(verify));
+
+                if(GetDisplayInfoData(
+                        NULL,
+                        (UBYTE *)&verify,
+                        sizeof(verify),
+                        DTAG_DISP,
+                        classicHam) > 0 &&
+                   (verify.PropertyFlags & DIPF_IS_HAM) &&
+                   !(verify.PropertyFlags & DIPF_IS_AA)
+#ifdef DIPF_IS_FOREIGN
+                   && !(verify.PropertyFlags & DIPF_IS_FOREIGN)
+#endif
+                   )
+                {
+                    _ScreenModeId = classicHam;
+                    _ScreenDepthAsked = 6;
+                    _flags &= ~(DISPFLAG_USETRIPLEBUFFER |
+                                DISPFLAG_USEHEIGHTBUFFER);
+
+                    printf(
+                        "FRF105 A1200 HAM MAP: "
+                        "AGA/AA %08lx -> classic HAM6 %08lx "
+                        "nominal=%ux%u depth=6\n",
+                        (unsigned long)oldMode,
+                        (unsigned long)classicHam,
+                        (unsigned int)nominalW,
+                        (unsigned int)nominalH);
+                }
+            }
+        }
+    }
+#endif
+
     /* FRF V3L: detect native OCS/ECS HAM6 and EHB6 separately. */
     if(_ScreenModeId != INVALID_ID)
     {
@@ -1317,9 +1434,12 @@ bool Intuition_Screen_OS3::open()
                 _frfFix75V4HamOutput = NULL;
             }
 
+            /* FRF106_NO_STATIC_FALLBACK */
             printf(
-                "FRF FIX75 V4 ROUTE FALLBACK: "
-                "E-UAE backend open failed; static renderer retained\n");
+                "FRF106 FAST HAM FATAL: "
+                "E-UAE backend rejected owned 320x256x6 HAM bitmap\n");
+            Intuition_Screen::close();
+            return false;
         }
         else
         {

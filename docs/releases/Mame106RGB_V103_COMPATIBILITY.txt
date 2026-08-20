@@ -1,0 +1,14 @@
+A500 HAM6: runtime proven.
+A1200/AGA HAM6: runtime proven after RC10 canonical interleaved fix.
+EHB: retained.
+RTG/P96/CGX/SAGA: existing backend retained; requester exposure enabled.
+DPF/DPF2: visible native modes; not recommended Mame106RGB targets.
+
+CPU packages:
+68020 soft-float
+68030 soft-float
+68040 FPU/hard-float
+68060 FPU/hard-float
+
+68020/030/040 should receive a quick hardware smoke test before individual
+hardware validation is claimed.

@@ -1,0 +1,15 @@
+Mame106RGB V103 - Release Notes
+20 August 2026
+
+A1200/AGA HAM root cause:
+  320 pixels = 40 bytes per plane-row
+  6 planes = 240 bytes per complete row
+  Plane[n] = Plane[0] + n*40
+  BytesPerRow = 240
+  renderer rowStride = 240
+
+The old detector treated BytesPerRow as a single-plane row and rejected the
+valid A1200 screen. V103 now recognises the canonical AGA layout while keeping
+the runtime-proven A500 legacy layout as a separate path.
+
+The failed experimental 1945K III palette correction is excluded.
