@@ -302,6 +302,7 @@ public:
         void serialize(ASerializer &serializer) override;
         int _llPort_Player[4]; // value 1-4
         int _llPort_Type[4];    // LowLevel enum + proportional
+        int _llPort_PadLayout[4]; /* FRF101_MODERN_GAMEPAD_CONTROLS: 0=Classic CD32, 1=Modern */
         int _parallelPort_Player[2]; // value 1-4
         int _parallel_type[2];
         int _serialPort_Player=0;

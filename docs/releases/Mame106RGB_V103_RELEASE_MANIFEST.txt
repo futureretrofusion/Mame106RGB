@@ -1,0 +1,31 @@
+Mame106RGB V103 Release Manifest
+Build date: 2026-08-20
+
+Runtime-proven source invariants:
+  RC10 canonical AGA interleaved route: PASS
+  A500 legacy interleaved route retained: PASS
+  fixed 320x256 HAM route: PASS
+  RC8 bad bitmap validator absent: PASS
+  RC9 diagnostic backend absent: PASS\n  Multi-CPU build: preserve configured VASM products; rebuild C/C++ only\n  Version identity writer: scalar macros only; validated continuations preserved
+
+Runtime validation:
+  A500-class native HAM: proven
+  A1200/AGA native HAM: proven
+
+CPU packages:
+  68020 soft-float
+  68030 soft-float
+  68040 FPU/hard-float
+  68060 FPU/hard-float
+
+Final executable names:
+  68020: Mame106RGB_V103_68020
+  68030: Mame106RGB_V103_68030
+  68040: Mame106RGB_V103_68040
+  68060: Mame106RGB_V103_68060
+
+Matching Workbench icons:
+  Mame106RGB_V103_68020.info
+  Mame106RGB_V103_68030.info
+  Mame106RGB_V103_68040.info
+  Mame106RGB_V103_68060.info

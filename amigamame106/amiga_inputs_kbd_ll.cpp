@@ -193,6 +193,51 @@ static const char * const padsbtnames[4][11]={
     },
 };
 
+/* FRF101_MODERN_GAMEPAD_CONTROLS
+ * Existing CD32/LowLevel raw bits, modern familiar names:
+ * Red=A, Blue=B, Yellow=X, Green=Y, Reverse=L1, Forward=R1, Play=Start.
+ */
+static const char * const modernpadsbtnames[4][11]={
+    {"Gamepad1 B","Gamepad1 A","Gamepad1 X","Gamepad1 Y","Gamepad1 R1","Gamepad1 L1","Gamepad1 Start",
+     "Gamepad1 UP","Gamepad1 DOWN","Gamepad1 LEFT","Gamepad1 RIGHT"},
+    {"Gamepad2 B","Gamepad2 A","Gamepad2 X","Gamepad2 Y","Gamepad2 R1","Gamepad2 L1","Gamepad2 Start",
+     "Gamepad2 UP","Gamepad2 DOWN","Gamepad2 LEFT","Gamepad2 RIGHT"},
+    {"Gamepad3 B","Gamepad3 A","Gamepad3 X","Gamepad3 Y","Gamepad3 R1","Gamepad3 L1","Gamepad3 Start",
+     "Gamepad3 UP","Gamepad3 DOWN","Gamepad3 LEFT","Gamepad3 RIGHT"},
+    {"Gamepad4 B","Gamepad4 A","Gamepad4 X","Gamepad4 Y","Gamepad4 R1","Gamepad4 L1","Gamepad4 Start",
+     "Gamepad4 UP","Gamepad4 DOWN","Gamepad4 LEFT","Gamepad4 RIGHT"},
+};
+
+/* FRF102_POSEIDON_EXTENDED_GAMEPAD
+ * Poseidon hid.class extended controller bridge.
+ *
+ * Trident / hid.class Raw Key assignments expected:
+ *   A     -> KP 1          B     -> KP 2
+ *   X     -> KP 3          Y     -> KP 4
+ *   LB    -> KP 5          RB    -> KP 6
+ *   LT    -> KP 7          RT    -> KP 8
+ *   L3    -> KP 9          R3    -> KP 0
+ *   Start -> KP Enter      Back  -> KP Decimal
+ *
+ * D-pad / left stick stay on the normal lowlevel ReadJoyPort path.
+ * For analogue LT/RT, configure the Poseidon Raw Key action to fire when
+ * the trigger crosses roughly half travel, with key-up when it returns.
+ */
+static const char * const frf102PoseidonNames[12] = {
+    "Gamepad A (Poseidon HID)",
+    "Gamepad B (Poseidon HID)",
+    "Gamepad X (Poseidon HID)",
+    "Gamepad Y (Poseidon HID)",
+    "Gamepad LB (Poseidon HID)",
+    "Gamepad RB (Poseidon HID)",
+    "Gamepad LT (Poseidon HID)",
+    "Gamepad RT (Poseidon HID)",
+    "Gamepad L3 (Poseidon HID)",
+    "Gamepad R3 (Poseidon HID)",
+    "Gamepad Start (Poseidon HID)",
+    "Gamepad Back/View (Poseidon HID)"
+};
+
 static void *kbd_Create(void *registerer,fAddOsCode addOsCode)
 {
     kbdInput *p  =new kbdInput();
@@ -332,6 +377,58 @@ static void *kbd_Create(void *registerer,fAddOsCode addOsCode)
     // - - - - Lowlevel controllers will send buttons as keyboard, so init here:
     MameConfig::Controls &configControls = getMainConfig().controls();
     MameConfig::Misc &configMisc = getMainConfig().misc();
+
+    /* FRF102_POSEIDON_EXTENDED_GAMEPAD
+     * One extended HID bridge may be active at a time because Poseidon Raw Key
+     * actions are global keyboard events. The selected lowlevel port still
+     * decides which MAME player receives the events.
+     */
+    {
+        int frf102BridgePort = -1;
+
+        for(int i=0;i<4;i++)
+        {
+            if(configControls._llPort_Player[i] > 0 &&
+               configControls._llPort_PadLayout[i] == 2)
+            {
+                if(frf102BridgePort < 0)
+                    frf102BridgePort = i;
+                else
+                    loginfo2(1,
+                        "FRF102: only one Modern HID Extended bridge is supported; ignoring additional port.");
+            }
+        }
+
+        if(frf102BridgePort >= 0)
+        {
+            int iPlayer = configControls._llPort_Player[frf102BridgePort] - 1;
+            const int mamecodeshift =
+                ((int)JOYCODE_2_LEFT - (int)JOYCODE_1_LEFT) * iPlayer;
+
+            vector<os_code_info> frf102codes = {
+                {frf102PoseidonNames[0],  0x1D, JOYCODE_1_BUTTON1  + mamecodeshift},
+                {frf102PoseidonNames[1],  0x1E, JOYCODE_1_BUTTON2  + mamecodeshift},
+                {frf102PoseidonNames[2],  0x1F, JOYCODE_1_BUTTON3  + mamecodeshift},
+                {frf102PoseidonNames[3],  0x2D, JOYCODE_1_BUTTON4  + mamecodeshift},
+                {frf102PoseidonNames[4],  0x2E, JOYCODE_1_BUTTON5  + mamecodeshift},
+                {frf102PoseidonNames[5],  0x2F, JOYCODE_1_BUTTON6  + mamecodeshift},
+                {frf102PoseidonNames[6],  0x3D, JOYCODE_1_BUTTON7  + mamecodeshift},
+                {frf102PoseidonNames[7],  0x3E, JOYCODE_1_BUTTON8  + mamecodeshift},
+                {frf102PoseidonNames[8],  0x3F, JOYCODE_1_BUTTON9  + mamecodeshift},
+                {frf102PoseidonNames[9],  0x0F, JOYCODE_1_BUTTON10 + mamecodeshift},
+                {frf102PoseidonNames[10], 0x43, JOYCODE_1_START    + mamecodeshift},
+                {frf102PoseidonNames[11], 0x3C, JOYCODE_1_SELECT   + mamecodeshift}
+            };
+
+            addOsCode(registerer,frf102codes.data(),frf102codes.size());
+
+            printf(
+                "FRF102 GAMEPAD: Poseidon Extended -> Player %d "
+                "(A/B/X/Y LB/RB LT/RT L3/R3 Start Back)\n",
+                iPlayer + 1);
+        }
+    }
+
     // 1 - - - - stats what's needed.
     //r1.6 only open lowlevel if some lowlevel type asked, and open/close each time.
     p->_useAnyMouse=0;
@@ -387,18 +484,23 @@ static void *kbd_Create(void *registerer,fAddOsCode addOsCode)
             // do not declare pads if it is mouse !!!
             if(lowlevelState == SJA_TYPE_GAMECTLR)
             {
+                const char * const *padNames =
+                    (configControls._llPort_PadLayout[iLLPort] != 0)
+                    ? modernpadsbtnames[iLLPort]
+                    : padsbtnames[iLLPort];
+
                 vector<os_code_info> kbi2={
-                    {padsbtnames[iLLPort][0],RAWKEY_PORT0_BUTTON_BLUE+ipshft,JOYCODE_1_BUTTON2+mamecodeshift},
-                    {padsbtnames[iLLPort][1],RAWKEY_PORT0_BUTTON_RED+ipshft,JOYCODE_1_BUTTON1+mamecodeshift},
-                    {padsbtnames[iLLPort][3-1],RAWKEY_PORT0_BUTTON_YELLOW+ipshft,JOYCODE_1_BUTTON3+mamecodeshift},
-                    {padsbtnames[iLLPort][4-1],RAWKEY_PORT0_BUTTON_GREEN+ipshft,JOYCODE_1_BUTTON4+mamecodeshift},
-                    {padsbtnames[iLLPort][5-1],RAWKEY_PORT0_BUTTON_FORWARD+ipshft,JOYCODE_1_BUTTON6+mamecodeshift},
-                    {padsbtnames[iLLPort][6-1],RAWKEY_PORT0_BUTTON_REVERSE+ipshft,JOYCODE_1_BUTTON5+mamecodeshift},
-                    {padsbtnames[iLLPort][6],RAWKEY_PORT0_BUTTON_PLAY+ipshft,JOYCODE_1_START+mamecodeshift},
-                    {padsbtnames[iLLPort][7],RAWKEY_PORT0_JOY_UP+ipshft,JOYCODE_1_UP+mamecodeshift},
-                    {padsbtnames[iLLPort][8],RAWKEY_PORT0_JOY_DOWN+ipshft,JOYCODE_1_DOWN+mamecodeshift},
-                    {padsbtnames[iLLPort][9],RAWKEY_PORT0_JOY_LEFT+ipshft,JOYCODE_1_LEFT+mamecodeshift},
-                    {padsbtnames[iLLPort][10],RAWKEY_PORT0_JOY_RIGHT+ipshft,JOYCODE_1_RIGHT+mamecodeshift}
+                    {padNames[0],RAWKEY_PORT0_BUTTON_BLUE+ipshft,JOYCODE_1_BUTTON2+mamecodeshift},
+                    {padNames[1],RAWKEY_PORT0_BUTTON_RED+ipshft,JOYCODE_1_BUTTON1+mamecodeshift},
+                    {padNames[3-1],RAWKEY_PORT0_BUTTON_YELLOW+ipshft,JOYCODE_1_BUTTON3+mamecodeshift},
+                    {padNames[4-1],RAWKEY_PORT0_BUTTON_GREEN+ipshft,JOYCODE_1_BUTTON4+mamecodeshift},
+                    {padNames[5-1],RAWKEY_PORT0_BUTTON_FORWARD+ipshft,JOYCODE_1_BUTTON6+mamecodeshift},
+                    {padNames[6-1],RAWKEY_PORT0_BUTTON_REVERSE+ipshft,JOYCODE_1_BUTTON5+mamecodeshift},
+                    {padNames[6],RAWKEY_PORT0_BUTTON_PLAY+ipshft,JOYCODE_1_START+mamecodeshift},
+                    {padNames[7],RAWKEY_PORT0_JOY_UP+ipshft,JOYCODE_1_UP+mamecodeshift},
+                    {padNames[8],RAWKEY_PORT0_JOY_DOWN+ipshft,JOYCODE_1_DOWN+mamecodeshift},
+                    {padNames[9],RAWKEY_PORT0_JOY_LEFT+ipshft,JOYCODE_1_LEFT+mamecodeshift},
+                    {padNames[10],RAWKEY_PORT0_JOY_RIGHT+ipshft,JOYCODE_1_RIGHT+mamecodeshift}
                 };
 
                 if(iPlayer == ASBTRACT_KEYS)

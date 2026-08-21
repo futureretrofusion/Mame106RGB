@@ -46,7 +46,6 @@ static UINT8 adc_reverse[8];
 
 static UINT8 vblank_irq_state;
 static UINT8 timer_irq_state;
-static INT8 last_main_irq_state; /* FRF_XBOARD_IRQ_DEDUP_V1 */
 static UINT8 gprider_hack;
 
 static UINT16 *backupram1, *backupram2;
@@ -77,7 +76,6 @@ static void xboard_generic_init(void)
     iochip_force_input = 0;
     vblank_irq_state = 0;
     timer_irq_state = 0;
-    last_main_irq_state = -1;
 
 	/* init the FD1094 */
 	fd1094_driver_init();
@@ -114,11 +112,6 @@ static void update_main_irqs(void)
     if (gprider_hack && irq > 4)
         irq = 4;
 
-    /* FRF_XBOARD_IRQ_DEDUP_V1 */
-    if (irq == last_main_irq_state)
-        return;
-    last_main_irq_state = irq;
-
     if (irq != 0)
     {
         cpunum_set_input_line(0, irq, ASSERT_LINE);
@@ -131,41 +124,31 @@ static void update_main_irqs(void)
 
 static void scanline_callback(int scanline)
 {
-    int next_scanline;
+    if (segaic16_compare_timer_clock(0))
+    {
+        timer_irq_state = 1;
+        update_main_irqs();
+    }
 
-    /* FRF_XBOARD_SCANLINE_FASTPATH_V1 */
     if (scanline == 223)
     {
-        if (segaic16_compare_timer_clock(0))
-            timer_irq_state = 1;
-
         vblank_irq_state = 1;
         cpunum_set_input_line(1, 4, ASSERT_LINE);
         update_main_irqs();
-        next_scanline = 224;
     }
     else if (scanline == 224)
     {
         vblank_irq_state = 0;
         cpunum_set_input_line(1, 4, CLEAR_LINE);
         update_main_irqs();
-        next_scanline = 225;
-    }
-    else
-    {
-        if (segaic16_compare_timer_clock(0))
-        {
-            timer_irq_state = 1;
-            update_main_irqs();
-        }
-
-        next_scanline = scanline + 2;
-        if (next_scanline >= 262)
-            next_scanline -= 262;
     }
 
-    mame_timer_set(cpu_getscanlinetime_mt(next_scanline),
-                   next_scanline, scanline_callback);
+    scanline++;
+    if (scanline >= 262)
+        scanline = 0;
+
+    mame_timer_set(cpu_getscanlinetime_mt(scanline),
+                   scanline, scanline_callback);
 }
 
 
@@ -1115,19 +1098,6 @@ static MACHINE_DRIVER_START( xboard )
 	MDRV_SOUND_CONFIG(segapcm_interface)
 	MDRV_SOUND_ROUTE(0, "left", 1.0)
 	MDRV_SOUND_ROUTE(1, "right", 1.0)
-MACHINE_DRIVER_END
-
-
-/* FRF_AFTERBURNER_INTERLEAVE_PROFILE_V1
- *
- * After Burner-specific scheduler profile. The generic X-board profile
- * remains at 100 slices for all other games. IRQ-triggered calls to
- * cpu_boost_interleave() remain active, preserving short synchronisation
- * bursts when the emulated CPUs communicate.
- */
-static MACHINE_DRIVER_START( aburner_fast )
-    MDRV_IMPORT_FROM(xboard)
-    MDRV_INTERLEAVE(100)
 MACHINE_DRIVER_END
 
 
@@ -2390,8 +2360,8 @@ static DRIVER_INIT( gprider )
  *
  *************************************/
 
-GAME( 1987, aburner2, 0,        aburner_fast,  aburner2, aburner2,       ROT0, "Sega", "After Burner II", 0 ,0,1,egg_Flying,EGF_P3D)
-GAME( 1987, aburner,  aburner2, aburner_fast,  aburner,  aburner2,       ROT0, "Sega", "After Burner (Japan)", 0 ,0,1,egg_Flying,EGF_P3D)
+GAME( 1987, aburner2, 0,        xboard,  aburner2, aburner2,       ROT0, "Sega", "After Burner II", 0 ,0,1,egg_Flying,EGF_P3D)
+GAME( 1987, aburner,  aburner2, xboard,  aburner,  aburner2,       ROT0, "Sega", "After Burner (Japan)", 0 ,0,1,egg_Flying,EGF_P3D)
 GAME( 1987, thndrbld, 0,        xboard,  thndrbld, generic_xboard, ROT0, "Sega", "Thunder Blade (FD1094 317-0056)", 0 ,0,1,egg_Flying,EGF_P3D)
 GAME( 1987, thndrbdj, thndrbld, xboard,  thndrbld, generic_xboard, ROT0, "Sega", "Thunder Blade (Japan)", 0 ,0,1,egg_Flying,EGF_P3D)
 GAME( 1989, loffire,  0,        loffire, loffire,  loffire,        ROT0, "Sega", "Line of Fire / Bakudan Yarou (World, FD1094 317-0136)", 0 ,2,0,egg_LightGuns,EGF_P3D)
