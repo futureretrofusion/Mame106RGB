@@ -143,6 +143,37 @@ static int frf86b_game_mode(void)
 }
 
 
+/* FRF109_SLAPFIGHT_NATIVE_OVERSCAN
+ *
+ * Slap Fight exposes a 280x240 visible area and ROT270 turns that into
+ * 240x280. Preserve its previous native-size overscan presentation.
+ *
+ * Other tall/rotated games continue through FRF103's proportional fit.
+ * Set FRF_SLAPFIGHT_FIT=1 to opt Slap Fight back into that fit.
+ */
+static int frf109_slapfight_native_overscan(void)
+{
+    const char *name = 0;
+    const char *fit = getenv("FRF_SLAPFIGHT_FIT");
+
+    if(fit && *fit && strcmp(fit, "0") != 0)
+        return 0;
+
+    if(Machine && Machine->gamedrv)
+        name = Machine->gamedrv->name;
+
+    if(!name)
+        return 0;
+
+    return
+        strcmp(name, "slapfigh") == 0 ||
+        strcmp(name, "slapfiga") == 0 ||
+        strcmp(name, "slapbtjp") == 0 ||
+        strcmp(name, "slapbtuk") == 0 ||
+        strcmp(name, "slapfgtr") == 0;
+}
+
+
 /* FRF_FIX74_HAM_PIPELINE_COUNTERS
  * Two osd_cycles() reads per HAM draw and per renderFrame call.
  * No timers are placed inside pixel, line or Chip RAM copy loops.
@@ -2783,6 +2814,8 @@ bool Ham6EuaeOutput::renderFrame(
      * Width is rounded down to a whole 16-pixel HAM word.
      */
     int frf103TallFast = 0;
+    int frf109SlapFightNativeOverscan = 0;
+    int frf109NativeCropStart = 0;
 
     if(frf92Scale == 1000 &&
        (orientation & ORIENTATION_SWAP_XY) != 0 &&
@@ -2800,14 +2833,28 @@ bool Ham6EuaeOutput::renderFrame(
 
         if(frfIndexedOK || frfDirectOK)
         {
-            targetHeight = HEIGHT;
-            targetWidth =
-                (orientedWidth * HEIGHT + orientedHeight / 2) /
-                orientedHeight;
-            targetWidth &= ~15;
-            if(targetWidth < 16) targetWidth = 16;
-            if(targetWidth > WIDTH) targetWidth = WIDTH;
-            frf103TallFast = 1;
+            if(frf109_slapfight_native_overscan() &&
+               orientedWidth == 240 &&
+               orientedHeight > HEIGHT)
+            {
+                targetHeight = HEIGHT;
+                targetWidth = orientedWidth;
+                frf109NativeCropStart =
+                    (orientedHeight - targetHeight) >> 1;
+                frf109SlapFightNativeOverscan = 1;
+                frf103TallFast = 1;
+            }
+            else
+            {
+                targetHeight = HEIGHT;
+                targetWidth =
+                    (orientedWidth * HEIGHT + orientedHeight / 2) /
+                    orientedHeight;
+                targetWidth &= ~15;
+                if(targetWidth < 16) targetWidth = 16;
+                if(targetWidth > WIDTH) targetWidth = WIDTH;
+                frf103TallFast = 1;
+            }
         }
     }
 
@@ -2932,7 +2979,10 @@ bool Ham6EuaeOutput::renderFrame(
         for(y = 0; y < targetHeight; y++)
         {
             int orientedY =
-                (y * orientedHeight + targetHeight / 2) / targetHeight;
+                frf109SlapFightNativeOverscan
+                    ? y + frf109NativeCropStart
+                    : (y * orientedHeight + targetHeight / 2) /
+                      targetHeight;
             int sourceX;
 
             if(orientedY >= orientedHeight)
@@ -3074,15 +3124,30 @@ bool Ham6EuaeOutput::renderFrame(
 
         if(!_rotatedIndexedReported)
         {
-            printf(
-                "FRF103 TALL FAST HAM: %s raw=%dx%d oriented=%dx%d "
-                "fit=%dx%d x=%d words=%d depth=%d direct=%s\\n",
-                _probeGameName[0] ? _probeGameName : "unknown",
-                sourceWidth, sourceHeight,
-                orientedWidth, orientedHeight,
-                targetWidth, targetHeight,
-                offsetX, spanWords, depth,
-                direct ? "YES" : "NO");
+            if(frf109SlapFightNativeOverscan)
+            {
+                printf(
+                    "FRF109 SLAPFIGHT OVERSCAN: %s "
+                    "oriented=%dx%d native-window=%dx%d "
+                    "crop-start=%d x=%d words=%d\\n",
+                    _probeGameName[0] ? _probeGameName : "unknown",
+                    orientedWidth, orientedHeight,
+                    targetWidth, targetHeight,
+                    frf109NativeCropStart,
+                    offsetX, spanWords);
+            }
+            else
+            {
+                printf(
+                    "FRF103 TALL FAST HAM: %s raw=%dx%d oriented=%dx%d "
+                    "fit=%dx%d x=%d words=%d depth=%d direct=%s\\n",
+                    _probeGameName[0] ? _probeGameName : "unknown",
+                    sourceWidth, sourceHeight,
+                    orientedWidth, orientedHeight,
+                    targetWidth, targetHeight,
+                    offsetX, spanWords, depth,
+                    direct ? "YES" : "NO");
+            }
             _rotatedIndexedReported = 1;
         }
 
